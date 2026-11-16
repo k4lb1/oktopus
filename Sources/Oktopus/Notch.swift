@@ -9,12 +9,13 @@ struct Geometrie {
     var notchBreite: CGFloat = 0
     var notchHoehe: CGFloat = 32
     let fluegel: CGFloat = 76
-    let pixelGross: CGFloat = 4
+    let pixelGross: CGFloat = 6
     static let maxSitzungen = 6
 
     var breiteZu: CGFloat { notchBreite + 2 * fluegel }
     var breiteOffen: CGFloat { max(notchBreite + 2 * 200, 600) }
-    var pixelKlein: CGFloat { floor((notchHoehe - 8) / CGFloat(Pixelbild.hoehe) * 2) / 2 }
+    // Pixelhöhe; Pixel sind wie Terminal-Viertelblöcke doppelt so hoch wie breit
+    var pixelKlein: CGFloat { floor((notchHoehe - 1) / CGFloat(Pixelbild.hoehe) * 2) / 2 }
 
     func hoeheOffen(sitzungen n: Int) -> CGFloat {
         notchHoehe + 150 + CGFloat(min(max(n - 1, 0), Self.maxSitzungen - 1)) * 22
@@ -134,6 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 struct PixelFigur: View {
     let bild: Pixelbild
+    /// Pixelhöhe; die Breite ist die Hälfte, wie bei Viertelblöcken im Terminal
     let pixel: CGFloat
 
     var body: some View {
@@ -142,12 +144,12 @@ struct PixelFigur: View {
                 for x in 0..<Pixelbild.breite {
                     // Schwarz bleibt ein Loch im Körper, so sind Augen und Mund dunkel
                     guard let g = bild[x, y], g > 0 else { continue }
-                    let rechteck = CGRect(x: CGFloat(x) * pixel, y: CGFloat(y) * pixel, width: pixel, height: pixel)
+                    let rechteck = CGRect(x: CGFloat(x) * pixel / 2, y: CGFloat(y) * pixel, width: pixel / 2, height: pixel)
                     ctx.fill(Path(rechteck), with: .color(Color(white: Double(g) / 255)))
                 }
             }
         }
-        .frame(width: CGFloat(Pixelbild.breite) * pixel, height: CGFloat(Pixelbild.hoehe) * pixel)
+        .frame(width: CGFloat(Pixelbild.breite) * pixel / 2, height: CGFloat(Pixelbild.hoehe) * pixel)
     }
 }
 
