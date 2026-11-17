@@ -8,7 +8,7 @@ struct Geometrie {
     var oben: CGFloat = 0
     var notchBreite: CGFloat = 0
     var notchHoehe: CGFloat = 32
-    let fluegel: CGFloat = 54
+    let fluegel: CGFloat = 42
     let pixelListe: CGFloat = 4
     let zeileHoehe: CGFloat = 58
     let meldungHoehe: CGFloat = 24
@@ -16,8 +16,9 @@ struct Geometrie {
 
     var breiteZu: CGFloat { notchBreite + 2 * fluegel }
     var breiteOffen: CGFloat { max(notchBreite + 2 * 200, 600) }
-    // Pixelhöhe; Pixel sind wie Terminal-Viertelblöcke doppelt so hoch wie breit
-    var pixelKlein: CGFloat { floor((notchHoehe - 1) / CGFloat(Pixelbild.hoehe) * 2) / 2 }
+    // Pixelhöhe; Pixel sind wie Terminal-Viertelblöcke doppelt so hoch wie breit.
+    // 2 pt hoch, 1 pt breit fällt auf ganze Retina-Pixel und bleibt scharf.
+    let pixelKlein: CGFloat = 2
 
     func hoeheOffen(sitzungen n: Int) -> CGFloat {
         notchHoehe + 6 + CGFloat(min(max(n, 1), Self.maxSitzungen)) * zeileHoehe + 40
@@ -66,6 +67,9 @@ final class NotchModell: ObservableObject {
     @Published var aufgeklappt = false
     @Published var meldung: Meldung?
     @Published var geometrie = Geometrie.berechnen()
+
+    /// Irgendeine Sitzung wartet auf eine Erlaubnis
+    var klopft: Bool { sitzungen.contains { $0.wirksamerZustand == "fragt" } }
 }
 
 final class NotchFenster: NSPanel {
@@ -187,6 +191,50 @@ struct PixelFigur: View {
     }
 }
 
+/// Klopft von innen gegen den Bildschirm, wenn eine Sitzung dich braucht:
+/// zwei schnelle Stöße nach vorn, dabei kurze Klopfstriche links und rechts
+struct KlopfendeFigur: View {
+    let bild: Pixelbild
+    let pixel: CGFloat
+    let klopft: Bool
+
+    var body: some View {
+        TimelineView(.animation(paused: !klopft)) { kontext in
+            let stoss = klopft ? Self.stoss(kontext.date.timeIntervalSinceReferenceDate) : 0
+            PixelFigur(bild: bild, pixel: pixel)
+                .scaleEffect(1 + 0.2 * stoss)
+                .overlay { Self.striche(groesse: pixel * 3).opacity(stoss) }
+        }
+    }
+
+    /// 0…1: zwei kurze Stöße zu Beginn jedes 1,4-Sekunden-Takts
+    static func stoss(_ t: TimeInterval) -> Double {
+        let p = t.truncatingRemainder(dividingBy: 1.4)
+        func buckel(_ mitte: Double) -> Double { max(0, 1 - abs(p - mitte) / 0.08) }
+        return max(buckel(0.08), buckel(0.34))
+    }
+
+    /// Je drei kurze Striche, die vom Kopf weg nach außen zeigen
+    private static func striche(groesse: CGFloat) -> some View {
+        Canvas { ctx, size in
+            // Die Fläche ist rundum um 2 × groesse größer als die Figur
+            let halb = size.width / 2 - groesse * 2
+            let mitteY = groesse * 2 + (size.height - groesse * 4) * 0.35
+            for seite in [-1.0, 1.0] {
+                let x0 = size.width / 2 + seite * (halb + groesse * 0.4)
+                for winkel in [-0.5, 0.0, 0.5] {
+                    var strich = Path()
+                    strich.move(to: CGPoint(x: x0, y: mitteY + winkel * groesse * 1.2))
+                    strich.addLine(to: CGPoint(x: x0 + seite * groesse, y: mitteY + winkel * groesse * 2))
+                    ctx.stroke(strich, with: .color(Color(white: 0.6)), lineWidth: max(1, groesse / 5))
+                }
+            }
+        }
+        .padding(-groesse * 2)
+        .allowsHitTesting(false)
+    }
+}
+
 struct NotchAnsicht: View {
     @ObservedObject var modell: NotchModell
 
@@ -231,7 +279,7 @@ struct NotchAnsicht: View {
                     .foregroundStyle(wert)
                     .frame(width: g.fluegel)
                 Color.clear.frame(width: g.notchBreite)
-                PixelFigur(bild: modell.bild, pixel: g.pixelKlein)
+                KlopfendeFigur(bild: modell.bild, pixel: g.pixelKlein, klopft: modell.klopft)
                     .frame(width: g.fluegel)
             }
             .frame(height: g.notchHoehe)
@@ -281,7 +329,7 @@ struct NotchAnsicht: View {
     private func zeile(_ s: Sitzung, _ g: Geometrie) -> some View {
         let cache = s.cache
         return HStack(spacing: 14) {
-            PixelFigur(bild: s.bild ?? modell.bild, pixel: g.pixelListe)
+            KlopfendeFigur(bild: s.bild ?? modell.bild, pixel: g.pixelListe, klopft: s.wirksamerZustand == "fragt")
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
                     Text(s.titel).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
