@@ -8,8 +8,9 @@ struct Geometrie {
     var oben: CGFloat = 0
     var notchBreite: CGFloat = 0
     var notchHoehe: CGFloat = 32
-    let fluegel: CGFloat = 76
+    let fluegel: CGFloat = 54
     let pixelGross: CGFloat = 6
+    let meldungHoehe: CGFloat = 24
     static let maxSitzungen = 6
 
     var breiteZu: CGFloat { notchBreite + 2 * fluegel }
@@ -52,10 +53,17 @@ struct Geometrie {
     }
 }
 
+/// Kurze Nachricht unter der Notch, z. B. wenn eine Sitzung fertig ist
+struct Meldung: Equatable {
+    let text: String
+    let wichtig: Bool
+}
+
 final class NotchModell: ObservableObject {
     @Published var bild = Pixelbild()
     @Published var sitzungen: [Sitzung] = []
     @Published var aufgeklappt = false
+    @Published var meldung: Meldung?
     @Published var geometrie = Geometrie.berechnen()
 }
 
@@ -114,8 +122,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 self.modell.sitzungen = sitzungen
                 if let bild { self.modell.bild = bild }
+                self.melden(sitzungen)
                 self.rendertGerade = false
             }
+        }
+    }
+
+    /// Wann zuletzt eine Sitzung als fertig gemeldet wurde, damit jedes Fertig nur einmal kommt
+    private var gemeldetFertig: [String: TimeInterval] = [:]
+    private var fertigBis: Date?
+
+    /// Erlaubnisfragen bleiben stehen, bis sie beantwortet sind; Fertig zeigt sich ein paar Sekunden
+    private func melden(_ sitzungen: [Sitzung]) {
+        let jetzt = Date().timeIntervalSince1970
+        var neu: Meldung?
+
+        for s in sitzungen where s.zustand == "fertig" && jetzt - s.seit < 10 && gemeldetFertig[s.id] != s.seit {
+            gemeldetFertig[s.id] = s.seit
+            neu = Meldung(text: "✓ fertig · \(s.titel)", wichtig: false)
+            fertigBis = Date().addingTimeInterval(6)
+        }
+        if let fragt = sitzungen.first(where: { $0.wirksamerZustand == "fragt" }) {
+            neu = Meldung(text: "? braucht dich · \(fragt.titel)", wichtig: true)
+        } else if neu == nil, let m = modell.meldung, !m.wichtig, let bis = fertigBis, Date() < bis {
+            neu = m
+        }
+        if neu != modell.meldung {
+            withAnimation(.spring(duration: 0.35)) { modell.meldung = neu }
         }
     }
 
@@ -164,7 +197,8 @@ struct NotchAnsicht: View {
         let g = modell.geometrie
         let offen = modell.aufgeklappt
         let breite = offen ? g.breiteOffen : g.breiteZu
-        let hoehe = offen ? g.hoeheOffen(sitzungen: modell.sitzungen.count) : g.notchHoehe
+        let hoehe = offen ? g.hoeheOffen(sitzungen: modell.sitzungen.count)
+            : g.notchHoehe + (modell.meldung == nil ? 0 : g.meldungHoehe)
         let radius: CGFloat = offen ? 20 : 10
 
         ZStack(alignment: .top) {
@@ -189,16 +223,27 @@ struct NotchAnsicht: View {
     }
 
     private func zugeklappt(_ g: Geometrie) -> some View {
-        HStack(spacing: 0) {
-            Text(modell.sitzungen.first?.kontextProzent.map { "\($0) %" } ?? "")
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundStyle(wert)
-                .frame(width: g.fluegel)
-            Color.clear.frame(width: g.notchBreite)
-            PixelFigur(bild: modell.bild, pixel: g.pixelKlein)
-                .frame(width: g.fluegel)
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Text(modell.sitzungen.first?.kontextProzent.map { "\($0) %" } ?? "")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(wert)
+                    .frame(width: g.fluegel)
+                Color.clear.frame(width: g.notchBreite)
+                PixelFigur(bild: modell.bild, pixel: g.pixelKlein)
+                    .frame(width: g.fluegel)
+            }
+            .frame(height: g.notchHoehe)
+            if let m = modell.meldung {
+                Text(m.text)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(m.wichtig ? .white : wert)
+                    .lineLimit(1)
+                    .padding(.horizontal, 12)
+                    .frame(height: g.meldungHoehe - 4, alignment: .top)
+                    .transition(.opacity)
+            }
         }
-        .frame(height: g.notchHoehe)
     }
 
     private func aufgeklappt(_ g: Geometrie) -> some View {
