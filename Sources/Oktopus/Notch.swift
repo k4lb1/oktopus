@@ -317,12 +317,18 @@ struct NotchAnsicht: View {
         }
     }
 
-    /// Alle offenen Sitzungen untereinander, jede mit eigenem Oktopus; Limits gelten fürs Konto und stehen einmal unten
+    /// Alle offenen Sitzungen untereinander, jede mit eigenem Oktopus; Limits gelten fürs Konto und stehen einmal oben
     private func aufgeklappt(_ g: Geometrie) -> some View {
         let liste = modell.sitzungen.sorted { $0.dauer > $1.dauer }.prefix(Geometrie.maxSitzungen)
         let limits = modell.sitzungen.first(where: { $0.info?.rate_limits != nil })?.limits
         return VStack(alignment: .leading, spacing: 0) {
             Color.clear.frame(height: g.notchHoehe + 6)
+            if let limits {
+                Text("Limits  " + limits.text)
+                    .font(schrift)
+                    .foregroundStyle(limits.hervorheben ? .white : etikett)
+                    .padding(.bottom, 8)
+            }
             if liste.isEmpty {
                 HStack(spacing: 14) {
                     PixelFigur(bild: modell.bild, pixel: g.pixelListe)
@@ -335,12 +341,6 @@ struct NotchAnsicht: View {
             }
             ForEach(Array(liste)) { s in
                 zeile(s, g)
-            }
-            if let limits {
-                Text("Limits  " + limits.text)
-                    .font(schrift)
-                    .foregroundStyle(limits.hervorheben ? .white : etikett)
-                    .padding(.top, 8)
             }
         }
         .padding(.horizontal, 22)
