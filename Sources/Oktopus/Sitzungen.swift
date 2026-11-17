@@ -54,6 +54,10 @@ struct Sitzung: Identifiable {
     var helfer = 0
     var json: Data?
     var info: Statuszeile?
+    var bild: Pixelbild?
+
+    /// Laufzeit der Sitzung; bleibt beim Sortieren stabil, anders als die letzte Aktivität
+    var dauer: Double { info?.cost?.total_duration_ms ?? 0 }
 
     /// Zustand nach denselben Abklingregeln wie in statusline.sh
     var wirksamerZustand: String {

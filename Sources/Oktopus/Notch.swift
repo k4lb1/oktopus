@@ -9,7 +9,8 @@ struct Geometrie {
     var notchBreite: CGFloat = 0
     var notchHoehe: CGFloat = 32
     let fluegel: CGFloat = 54
-    let pixelGross: CGFloat = 6
+    let pixelListe: CGFloat = 4
+    let zeileHoehe: CGFloat = 58
     let meldungHoehe: CGFloat = 24
     static let maxSitzungen = 6
 
@@ -19,7 +20,7 @@ struct Geometrie {
     var pixelKlein: CGFloat { floor((notchHoehe - 1) / CGFloat(Pixelbild.hoehe) * 2) / 2 }
 
     func hoeheOffen(sitzungen n: Int) -> CGFloat {
-        notchHoehe + 150 + CGFloat(min(max(n - 1, 0), Self.maxSitzungen - 1)) * 22
+        notchHoehe + 6 + CGFloat(min(max(n, 1), Self.maxSitzungen)) * zeileHoehe + 40
     }
 
     var fensterRahmen: NSRect {
@@ -116,9 +117,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !rendertGerade else { return }
         rendertGerade = true
         hintergrund.async {
-            let sitzungen = Sitzungen.lesen()
-            let aktuell = sitzungen.first
-            let bild = Figur.rendern(json: aktuell?.json, zustand: aktuell == nil ? "schlaeft" : nil)
+            var sitzungen = Sitzungen.lesen()
+            for i in sitzungen.indices { sitzungen[i].bild = Figur.rendern(json: sitzungen[i].json, zustand: nil) }
+            let bild = sitzungen.first?.bild ?? Figur.rendern(json: nil, zustand: "schlaeft")
             DispatchQueue.main.async {
                 self.modell.sitzungen = sitzungen
                 if let bild { self.modell.bild = bild }
@@ -246,65 +247,60 @@ struct NotchAnsicht: View {
         }
     }
 
+    /// Alle offenen Sitzungen untereinander, jede mit eigenem Oktopus; Limits gelten fürs Konto und stehen einmal unten
     private func aufgeklappt(_ g: Geometrie) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Color.clear.frame(height: g.notchHoehe - 6)
-            HStack(alignment: .top, spacing: 18) {
-                PixelFigur(bild: modell.bild, pixel: g.pixelGross)
-                if let s = modell.sitzungen.first {
-                    details(s)
-                } else {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Schläft").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+        let liste = modell.sitzungen.sorted { $0.dauer > $1.dauer }.prefix(Geometrie.maxSitzungen)
+        let limits = modell.sitzungen.first(where: { $0.info?.rate_limits != nil })?.limits
+        return VStack(alignment: .leading, spacing: 0) {
+            Color.clear.frame(height: g.notchHoehe + 6)
+            if liste.isEmpty {
+                HStack(spacing: 14) {
+                    PixelFigur(bild: modell.bild, pixel: g.pixelListe)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Schläft").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
                         Text("Keine Claude-Code-Sitzung offen").font(schrift).foregroundStyle(wert)
                     }
                 }
+                .frame(height: g.zeileHoehe)
             }
-            let weitere = modell.sitzungen.dropFirst().prefix(Geometrie.maxSitzungen - 1)
-            if !weitere.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(weitere)) { s in
-                        HStack(spacing: 8) {
-                            Text(s.titel).foregroundStyle(wert).lineLimit(1)
-                            Spacer(minLength: 8)
-                            Text(s.jetztText).foregroundStyle(etikett).lineLimit(1)
-                            Text(s.kontextProzent.map { "\($0) %" } ?? "–").foregroundStyle(etikett)
-                                .frame(width: 44, alignment: .trailing)
-                        }
-                        .font(schrift)
-                    }
-                }
+            ForEach(Array(liste)) { s in
+                zeile(s, g)
+            }
+            if let limits {
+                Text("Limits  " + limits.text)
+                    .font(schrift)
+                    .foregroundStyle(limits.hervorheben ? .white : etikett)
+                    .padding(.top, 8)
             }
         }
         .padding(.horizontal, 22)
-        .padding(.bottom, 14)
+        .padding(.bottom, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func details(_ s: Sitzung) -> some View {
-        let limits = s.limits, cache = s.cache
-        return VStack(alignment: .leading, spacing: 4) {
-            Text(s.titel).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
-            Text(s.modellText).font(schrift).foregroundStyle(wert)
-            zeile("Kontext") {
+    private func zeile(_ s: Sitzung, _ g: Geometrie) -> some View {
+        let cache = s.cache
+        return HStack(spacing: 14) {
+            PixelFigur(bild: s.bild ?? modell.bild, pixel: g.pixelListe)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text(s.titel).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                    Spacer(minLength: 8)
+                    Text(s.jetztText).foregroundStyle(wert).lineLimit(1)
+                }
                 HStack(spacing: 6) {
                     balken(s.kontextProzent ?? 0)
                     Text(s.kontextText).foregroundStyle(wert)
                 }
+                HStack(spacing: 0) {
+                    Text(s.modellText + " · Cache ").foregroundStyle(etikett)
+                    Text(cache.text).foregroundStyle(cache.knapp ? .white : etikett)
+                }
+                .lineLimit(1)
             }
-            zeile("Limits") { Text(limits.text).foregroundStyle(limits.hervorheben ? .white : wert) }
-            zeile("Cache") { Text(cache.text).foregroundStyle(cache.knapp ? .white : wert) }
-            zeile("Jetzt") { Text(s.jetztText).foregroundStyle(wert) }
-            zeile("") { Text(s.arbeitText).foregroundStyle(etikett).lineLimit(1) }
+            .font(schrift)
         }
-        .font(schrift)
-    }
-
-    private func zeile<Inhalt: View>(_ name: String, @ViewBuilder _ inhalt: () -> Inhalt) -> some View {
-        HStack(spacing: 8) {
-            Text(name).foregroundStyle(etikett).frame(width: 56, alignment: .leading)
-            inhalt()
-        }
+        .frame(height: g.zeileHoehe)
     }
 
     private func balken(_ prozent: Int) -> some View {
