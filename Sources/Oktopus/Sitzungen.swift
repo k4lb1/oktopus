@@ -70,6 +70,17 @@ struct Sitzung: Identifiable {
         }
     }
 
+    /// Wie dringend die Sitzung Aufmerksamkeit braucht; die dringendste vertritt alle in der zugeklappten Notch
+    var dringlichkeit: Int {
+        switch wirksamerZustand {
+        case "fragt": return 5
+        case "fehler": return 4
+        case "fertig": return 3
+        case "tool", "spricht", "denkt", "hoert": return 2
+        default: return 1
+        }
+    }
+
     var titel: String { info?.session_name ?? info?.model?.display_name ?? "Claude" }
 
     var modellText: String {

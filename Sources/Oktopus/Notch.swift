@@ -70,6 +70,11 @@ final class NotchModell: ObservableObject {
 
     /// Irgendeine Sitzung wartet auf eine Erlaubnis
     var klopft: Bool { sitzungen.contains { $0.wirksamerZustand == "fragt" } }
+
+    /// Die dringendste Sitzung, bei Gleichstand die zuletzt aktive
+    static func vertreter(_ sitzungen: [Sitzung]) -> Sitzung? {
+        sitzungen.max { ($0.dringlichkeit, $0.seit) < ($1.dringlichkeit, $1.seit) }
+    }
 }
 
 final class NotchFenster: NSPanel {
@@ -123,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hintergrund.async {
             var sitzungen = Sitzungen.lesen()
             for i in sitzungen.indices { sitzungen[i].bild = Figur.rendern(json: sitzungen[i].json, zustand: nil) }
-            let bild = sitzungen.first?.bild ?? Figur.rendern(json: nil, zustand: "schlaeft")
+            let bild = NotchModell.vertreter(sitzungen)?.bild ?? Figur.rendern(json: nil, zustand: "schlaeft")
             DispatchQueue.main.async {
                 self.modell.sitzungen = sitzungen
                 if let bild { self.modell.bild = bild }
@@ -274,10 +279,7 @@ struct NotchAnsicht: View {
     private func zugeklappt(_ g: Geometrie) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                Text(modell.sitzungen.first?.kontextProzent.map { "\($0) %" } ?? "")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(wert)
-                    .frame(width: g.fluegel)
+                sitzungsPunkte.frame(width: g.fluegel)
                 Color.clear.frame(width: g.notchBreite)
                 KlopfendeFigur(bild: modell.bild, pixel: g.pixelKlein, klopft: modell.klopft)
                     .frame(width: g.fluegel)
@@ -291,6 +293,26 @@ struct NotchAnsicht: View {
                     .padding(.horizontal, 12)
                     .frame(height: g.meldungHoehe - 4, alignment: .top)
                     .transition(.opacity)
+            }
+        }
+    }
+
+    /// Höchster Kontext aller Sitzungen, darunter ein Punkt pro offenem Terminal:
+    /// weiß braucht dich, hellgrau arbeitet, dunkel wartet
+    private var sitzungsPunkte: some View {
+        let liste = modell.sitzungen.sorted { $0.dauer > $1.dauer }.prefix(Geometrie.maxSitzungen)
+        return VStack(spacing: 4) {
+            Text(modell.sitzungen.compactMap(\.kontextProzent).max().map { "\($0) %" } ?? "")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundStyle(wert)
+            if liste.count > 1 {
+                HStack(spacing: 3) {
+                    ForEach(Array(liste)) { s in
+                        Circle()
+                            .fill(s.dringlichkeit >= 3 ? Color.white : s.dringlichkeit == 2 ? Color(white: 0.6) : Color(white: 0.3))
+                            .frame(width: 4, height: 4)
+                    }
+                }
             }
         }
     }
