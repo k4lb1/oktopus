@@ -1,5 +1,4 @@
 import AppKit
-import ServiceManagement
 import SwiftUI
 
 /// Maße rund um die Notch, in Bildschirmkoordinaten
@@ -114,6 +113,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         takt = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.aktualisieren() }
         maus = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in self?.mausPruefen() }
         aktualisieren()
+
+        if !UserDefaults.standard.bool(forKey: Schluessel.erklaert) {
+            UserDefaults.standard.set(true, forKey: Schluessel.erklaert)
+            EinstellungsFenster.shared.zeigen()
+        }
     }
 
     private func platzieren() {
@@ -239,6 +243,8 @@ struct KlopfendeFigur: View {
 
 struct NotchAnsicht: View {
     @ObservedObject var modell: NotchModell
+    @AppStorage(Schluessel.anzeige) private var anzeige = Anzeige.fuenfStunden.rawValue
+    @AppStorage(Schluessel.klopfen) private var klopfen = true
 
     private let schrift = Font.system(size: 11, design: .monospaced)
     private let etikett = Color(white: 0.35)
@@ -265,10 +271,7 @@ struct NotchAnsicht: View {
         .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: radius, bottomTrailingRadius: radius))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contextMenu {
-            Button(SMAppService.mainApp.status == .enabled ? "Nicht mehr beim Anmelden starten" : "Beim Anmelden starten") {
-                let dienst = SMAppService.mainApp
-                if dienst.status == .enabled { try? dienst.unregister() } else { try? dienst.register() }
-            }
+            Button("Einstellungen …") { EinstellungsFenster.shared.zeigen() }
             Button("Beenden") { NSApp.terminate(nil) }
         }
     }
@@ -278,7 +281,7 @@ struct NotchAnsicht: View {
             HStack(spacing: 0) {
                 sitzungsPunkte.frame(width: g.fluegel)
                 Color.clear.frame(width: g.notchBreite)
-                KlopfendeFigur(bild: modell.bild, pixel: g.pixelKlein, klopft: modell.klopft)
+                KlopfendeFigur(bild: modell.bild, pixel: g.pixelKlein, klopft: klopfen && modell.klopft)
                     .frame(width: g.fluegel)
             }
             .frame(height: g.notchHoehe)
@@ -294,15 +297,15 @@ struct NotchAnsicht: View {
         }
     }
 
-    /// 5-Stunden-Limit des Kontos, ab 80 % weiß; darunter ein Punkt pro offenem Terminal:
+    /// Gewählter Prozentwert (Limit oder Kontext), ab 80 % weiß; darunter ein Punkt pro offenem Terminal:
     /// weiß wartet auf Eingabe, hellgrau arbeitet, dunkel ruht
     private var sitzungsPunkte: some View {
         let liste = modell.sitzungen.sorted { $0.dauer > $1.dauer }.prefix(Geometrie.maxSitzungen)
-        let fuenf = modell.sitzungen.compactMap(\.fuenfStundenProzent).max()
+        let prozent = (Anzeige(rawValue: anzeige) ?? .fuenfStunden).prozent(modell.sitzungen)
         return VStack(spacing: 4) {
-            Text(fuenf.map { "\($0) %" } ?? "")
+            Text(prozent.map { "\($0) %" } ?? "")
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundStyle((fuenf ?? 0) >= 80 ? .white : wert)
+                .foregroundStyle((prozent ?? 0) >= 80 ? .white : wert)
                 .lineLimit(1)
                 .fixedSize()
             if liste.count > 1 {

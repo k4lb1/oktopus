@@ -52,6 +52,7 @@ if [[ -n $sid && -d $f.helfer ]]; then
   h=("$f.helfer"/*)
   [[ -e ${h[0]} ]] && helfer=${#h[@]}
 fi
+[[ -n $OKTOPUS_HELFER ]] && helfer=$OKTOPUS_HELFER
 
 [[ -n $OKTOPUS_ZUSTAND ]] && state=$OKTOPUS_ZUSTAND
 s=$(( now % 60 )) t=$(( now % 2 )) w=$(( now / 2 % 2 ))
@@ -120,7 +121,7 @@ case $state in
     (( z2 < 15 )) && links_schauen
     was='spricht' ;;
   fragt)
-    (( t )) && blick gross || mund='o'; rechts=1; was='fragt um Erlaubnis' ;;
+    (( t )) && blick gross || mund='o'; (( t )) && rechts=1; was='fragt um Erlaubnis' ;;
   fertig)
     (( t )) && blick froh || blick froh offen; links=1 rechts=1; was='fertig' ;;
   fehler)
@@ -131,7 +132,7 @@ case $state in
     was='wartet auf dich' ;;
 esac
 augen_o="${vl}${la}   ${ra}${vr}" augen_u="${vl}${lb} ${mund} ${rb}${vr}"
-(( helfer )) && links=1 && was+=" · $helfer Helfer"
+(( helfer )) && was+=" · $helfer Helfer"
 
 p=${pct%%.*}
 [[ $p == null ]] && p=
@@ -144,7 +145,7 @@ fi
 E=$'\e[38;5;' R0=$'\e[0m'
 C="${E}${c}m" G="${E}245m" D="${E}239m" W="${E}255m" T="${E}242m"
 
-# Körper, jede Zeile 15 Zellen breit. Arme oben: Frage (rechts), Jubel (beide), Helfer (links).
+# Körper, jede Zeile 15 Zellen breit. Arme oben: Frage (rechts, winkt), Jubel (beide).
 L='  ' R='  ' L2='  ' R2='  '
 (( links )) && L='▐▌' L2='▐▙'
 (( rechts )) && R='▐▌' R2='▟▌'
@@ -164,6 +165,11 @@ r4='  ▀█████████▀  '
 tinte='   ' tinte2='   '
 if [[ $state == fehler ]]; then
   (( t )) && { tinte="${T}░▒ $C"; tinte2="${T}▒░▒$C"; } || { tinte="$T ░▒$C"; tinte2="${T}░▒░$C"; }
+fi
+# Helfer: kleiner grauer Oktopus links unten, solange Unteragenten laufen
+if (( helfer )) && [[ $state != fehler ]]; then
+  tinte="${G}▟▙ $C" tinte2="${G}▛▜ $C"
+  (( w )) && tinte2="${G}▜▛ $C"
 fi
 if [[ $state == tool ]]; then
   (( t )) && r5="${tinte}▐▌▐▌ ▐▌▐▙▄▄▀" || r5="${tinte}▐▌▐▌ ▐▌▐▙▄▄▄"

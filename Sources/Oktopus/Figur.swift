@@ -20,13 +20,14 @@ enum Figur {
     static let skript = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".claude/statusline.sh").path
 
-    static func rendern(json: Data?, zustand: String?) -> Pixelbild? {
+    static func rendern(json: Data?, zustand: String?, helfer: Int = 0) -> Pixelbild? {
         let prozess = Process()
         prozess.executableURL = URL(fileURLWithPath: "/bin/bash")
         prozess.arguments = [skript]
         var umgebung = ProcessInfo.processInfo.environment
         umgebung["OKTOPUS_APP"] = "1"
         umgebung["OKTOPUS_ZUSTAND"] = zustand
+        if helfer > 0 { umgebung["OKTOPUS_HELFER"] = String(helfer) }
         prozess.environment = umgebung
         let ein = Pipe(), aus = Pipe()
         prozess.standardInput = ein
