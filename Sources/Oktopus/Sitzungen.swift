@@ -65,7 +65,6 @@ struct Sitzung: Identifiable {
         if alter > 1800 { return "wartet" }
         switch zustand {
         case "hoert" where alter > 2, "fehler" where alter > 4, "spricht" where alter > 3: return "denkt"
-        case "fertig" where alter > 4: return "wartet"
         default: return zustand
         }
     }

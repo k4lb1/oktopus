@@ -138,24 +138,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Wann zuletzt eine Sitzung als fertig gemeldet wurde, damit jedes Fertig nur einmal kommt
-    private var gemeldetFertig: [String: TimeInterval] = [:]
-    private var fertigBis: Date?
+    /// Fertig-Meldungen, die beim Aufklappen gesehen wurden: Sitzung → Zeitpunkt ihres Fertig
+    private var gesehenFertig: [String: TimeInterval] = [:]
 
-    /// Erlaubnisfragen bleiben stehen, bis sie beantwortet sind; Fertig zeigt sich ein paar Sekunden
+    /// Erlaubnisfragen bleiben stehen, bis sie beantwortet sind; Fertig bleibt stehen, bis die Notch aufgeklappt wird
     private func melden(_ sitzungen: [Sitzung]) {
-        let jetzt = Date().timeIntervalSince1970
         var neu: Meldung?
-
-        for s in sitzungen where s.zustand == "fertig" && jetzt - s.seit < 10 && gemeldetFertig[s.id] != s.seit {
-            gemeldetFertig[s.id] = s.seit
+        let offen = sitzungen.filter { $0.wirksamerZustand == "fertig" && gesehenFertig[$0.id] != $0.seit }
+        if let s = offen.max(by: { $0.seit < $1.seit }) {
             neu = Meldung(text: "✓ fertig · \(s.titel)", wichtig: false)
-            fertigBis = Date().addingTimeInterval(6)
         }
         if let fragt = sitzungen.first(where: { $0.wirksamerZustand == "fragt" }) {
             neu = Meldung(text: "? braucht dich · \(fragt.titel)", wichtig: true)
-        } else if neu == nil, let m = modell.meldung, !m.wichtig, let bis = fertigBis, Date() < bis {
-            neu = m
         }
         if neu != modell.meldung {
             withAnimation(.spring(duration: 0.35)) { modell.meldung = neu }
@@ -170,6 +164,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let drin = feld.insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation)
         if drin != modell.aufgeklappt {
             withAnimation(.spring(duration: 0.35)) { modell.aufgeklappt = drin }
+        }
+        if drin {
+            for s in modell.sitzungen where s.wirksamerZustand == "fertig" { gesehenFertig[s.id] = s.seit }
         }
     }
 }

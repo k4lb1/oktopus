@@ -42,7 +42,6 @@ age=$(( now - ts ))
 # Kurzlebige Zustände laufen in den Folgezustand über
 case $state in
   hoert)   (( age > 2 )) && state=denkt ;;
-  fertig)  (( age > 4 )) && state=wartet ;;
   fehler)  (( age > 4 )) && state=denkt ;;
   spricht) (( age > 3 )) && state=denkt ;;
 esac
