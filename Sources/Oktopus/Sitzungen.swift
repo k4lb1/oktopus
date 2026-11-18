@@ -91,6 +91,8 @@ struct Sitzung: Identifiable {
 
     var kontextProzent: Int? { info?.context_window?.used_percentage.map { Int($0) } }
 
+    var fuenfStundenProzent: Int? { info?.rate_limits?.five_hour?.used_percentage.map { Int($0) } }
+
     var kontextText: String {
         guard let k = info?.context_window, let p = k.used_percentage else { return "–" }
         let u = k.current_usage

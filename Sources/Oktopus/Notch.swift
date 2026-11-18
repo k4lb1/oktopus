@@ -297,14 +297,17 @@ struct NotchAnsicht: View {
         }
     }
 
-    /// Höchster Kontext aller Sitzungen, darunter ein Punkt pro offenem Terminal:
+    /// 5-Stunden-Limit des Kontos, ab 80 % weiß; darunter ein Punkt pro offenem Terminal:
     /// weiß braucht dich, hellgrau arbeitet, dunkel wartet
     private var sitzungsPunkte: some View {
         let liste = modell.sitzungen.sorted { $0.dauer > $1.dauer }.prefix(Geometrie.maxSitzungen)
+        let fuenf = modell.sitzungen.compactMap(\.fuenfStundenProzent).max()
         return VStack(spacing: 4) {
-            Text(modell.sitzungen.compactMap(\.kontextProzent).max().map { "\($0) %" } ?? "")
+            Text(fuenf.map { "5 h \($0) %" } ?? "")
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundStyle(wert)
+                .foregroundStyle((fuenf ?? 0) >= 80 ? .white : wert)
+                .lineLimit(1)
+                .fixedSize()
             if liste.count > 1 {
                 HStack(spacing: 3) {
                     ForEach(Array(liste)) { s in
