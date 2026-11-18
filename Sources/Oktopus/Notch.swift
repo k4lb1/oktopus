@@ -303,7 +303,7 @@ struct NotchAnsicht: View {
         let liste = modell.sitzungen.sorted { $0.dauer > $1.dauer }.prefix(Geometrie.maxSitzungen)
         let fuenf = modell.sitzungen.compactMap(\.fuenfStundenProzent).max()
         return VStack(spacing: 4) {
-            Text(fuenf.map { "5 h \($0) %" } ?? "")
+            Text(fuenf.map { "\($0) %" } ?? "")
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
                 .foregroundStyle((fuenf ?? 0) >= 80 ? .white : wert)
                 .lineLimit(1)
