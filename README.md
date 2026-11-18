@@ -4,6 +4,8 @@ A pixel octopus that shows what Claude Code is doing: as a status line in the te
 
 ![Oktopus in the notch](docs/notch.png)
 
+![All gestures: waiting, listening, thinking, working, talking, asking, done, error, with helpers, asleep](docs/gestures.gif)
+
 - **Status line** (`claude/statusline.sh`): the octopus with an info column (context, usage limits, prompt cache, current tool).
 - **Hooks** (`claude/oktopus-hook.sh`): write each session's state to `/tmp/oktopus-<session_id>`.
 - **Notch app** (`Sources/Oktopus`): shows the session that most needs attention, knocks when a permission is requested, reports when a session is done, and expands into a list of all sessions on hover. Next to the notch it shows the 5-hour usage limit.

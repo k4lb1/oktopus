@@ -49,6 +49,9 @@ IFS=$'\x1f' read -r now sid modell name pct ctx h5 h5r d7 d7r cache cache_knapp 
 # Eingabe für die Notch-App ablegen (nicht, wenn die App selbst zeichnen lässt)
 [[ -z $OKTOPUS_APP && -n $sid ]] && printf '%s' "$input" > "/tmp/oktopus-$sid.json"
 
+# Fester Zeitpunkt für Vorschaubilder (scripts/gesten.swift)
+[[ -n $OKTOPUS_JETZT ]] && now=$OKTOPUS_JETZT
+
 f=/tmp/oktopus-$sid
 state=wartet ts=$now extra=
 [[ -n $sid && -r $f ]] && read -r state ts extra < "$f"
@@ -183,8 +186,8 @@ if [[ $state == fehler ]]; then
 fi
 # Helfer: kleiner grauer Oktopus links unten, solange Unteragenten laufen
 if (( helfer )) && [[ $state != fehler ]]; then
-  tinte="${G}▟▙ $C" tinte2="${G}▛▜ $C"
-  (( w )) && tinte2="${G}▜▛ $C"
+  tinte="${G}▟█▙$C" tinte2="${G}▛▛▛$C"
+  (( w )) && tinte2="${G}▜▜▜$C"
 fi
 if [[ $state == tool ]]; then
   (( t )) && r5="${tinte}▐▌▐▌ ▐▌▐▙▄▄▀" || r5="${tinte}▐▌▐▌ ▐▌▐▙▄▄▄"
