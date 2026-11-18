@@ -22,12 +22,13 @@ cp claude/graustufen.json ~/.claude/themes/
 # Merge statusLine and hooks from claude/settings-auszug.json into ~/.claude/settings.json
 ```
 
-Right-click the octopus for "Beim Anmelden starten" (open at login) or "Beenden" (quit).
+Right-click the octopus and choose "Einstellungen …" for an explanation of every gesture and the settings: what is shown next to the notch (5-hour limit, weekly limit, context or nothing), knocking on permission requests, and opening at login. The window also opens on first launch.
 
 ## Build from source
 
 ```bash
-./bauen.sh   # builds ~/Applications/Oktopus.app
+./bauen.sh     # builds ~/Applications/Oktopus.app, ad-hoc signed
+./release.sh   # builds, signs with a Developer ID and notarizes dist/Oktopus.zip
 ```
 
 ## License
