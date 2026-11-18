@@ -50,7 +50,7 @@ enum Figur {
         "▚": [true, false, false, true], "▞": [false, true, true, false],
         "▙": [true, false, true, true], "▟": [false, true, true, true],
         "▛": [true, true, true, false], "▜": [true, true, false, true],
-        // Kleinkram in Grau: Gedankenblasen, Schall, Tinte, Schlaf
+        // Graue Details: Gedankenblasen, Schall, Tinte, Schlaf
         "∘": [false, false, false, true], "°": [true, false, false, false],
         ")": [true, false, false, true], "░": [true, false, false, true],
         "▒": [true, true, false, true], "z": [false, false, false, true],

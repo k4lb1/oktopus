@@ -1,20 +1,37 @@
 # Oktopus
 
-Ein Pixel-Oktopus, der zeigt, was Claude Code gerade tut: als Statuszeile im Terminal und als kleine Mac-App in der Notch.
+A pixel octopus that shows what Claude Code is doing: as a status line in the terminal and as a small Mac app in the notch.
 
-- **Statuszeile** (`claude/statusline.sh`): Oktopus mit großen Augen plus Infospalte (Kontext, Limits, Cache, aktuelles Tool).
-- **Hooks** (`claude/oktopus-hook.sh`): schreiben den Zustand jeder Sitzung nach `/tmp/oktopus-<session_id>`.
-- **Notch-App** (`Sources/Oktopus`): zeigt die dringendste Sitzung, klopft bei Erlaubnisfragen, meldet „fertig“, klappt beim Drüberfahren zur Liste aller Sitzungen auf.
+![Oktopus in the notch](docs/notch.png)
 
-Die Figur wird nur in `statusline.sh` gezeichnet; die App lässt das Skript zeichnen und rechnet die Viertelblöcke in Pixel um.
+- **Status line** (`claude/statusline.sh`): the octopus with an info column (context, usage limits, prompt cache, current tool).
+- **Hooks** (`claude/oktopus-hook.sh`): write each session's state to `/tmp/oktopus-<session_id>`.
+- **Notch app** (`Sources/Oktopus`): shows the session that most needs attention, knocks when a permission is requested, reports when a session is done, and expands into a list of all sessions on hover. Next to the notch it shows the 5-hour usage limit.
 
-## Einrichten
+The figure is drawn only in `statusline.sh`; the app runs the script and converts its quarter blocks into pixels.
+
+Requires macOS 15 or later, `jq`, and [Claude Code](https://claude.com/claude-code).
+
+## Install
+
+Download `Oktopus.zip` from the [latest release](../../releases/latest), unzip it and move `Oktopus.app` to Applications. Then set up the status line and hooks:
 
 ```bash
 cp claude/statusline.sh claude/oktopus-hook.sh ~/.claude/
 cp claude/graustufen.json ~/.claude/themes/
-# statusLine und hooks aus claude/settings-auszug.json in ~/.claude/settings.json übernehmen
-./bauen.sh   # baut ~/Applications/Oktopus.app
+# Merge statusLine and hooks from claude/settings-auszug.json into ~/.claude/settings.json
 ```
 
-Rechtsklick auf den Oktopus: „Beim Anmelden starten“ oder „Beenden“.
+Right-click the octopus for "Beim Anmelden starten" (open at login) or "Beenden" (quit).
+
+## Build from source
+
+```bash
+./bauen.sh   # builds ~/Applications/Oktopus.app
+```
+
+## License
+
+The source is available under the [PolyForm Noncommercial License 1.0.0](LICENSE): you may use, change and share it for any noncommercial purpose. Commercial use is not permitted.
+
+Made by [0xdeploy.studio](https://0xdeploy.studio).

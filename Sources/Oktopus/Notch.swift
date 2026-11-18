@@ -121,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fenster.setFrame(modell.geometrie.fensterRahmen, display: true)
     }
 
-    /// Sitzungen lesen und die Figur über statusline.sh zeichnen lassen; ohne offene Sitzung schläft er
+    /// Sitzungen lesen und die Figur über statusline.sh zeichnen lassen; ohne offene Sitzung zeigt sie den Schlafzustand
     private func aktualisieren() {
         guard !rendertGerade else { return }
         rendertGerade = true
@@ -196,7 +196,7 @@ struct PixelFigur: View {
     }
 }
 
-/// Klopft von innen gegen den Bildschirm, wenn eine Sitzung dich braucht:
+/// Klopfanimation, wenn eine Sitzung auf eine Eingabe wartet:
 /// zwei schnelle Stöße nach vorn, dabei kurze Klopfstriche links und rechts
 struct KlopfendeFigur: View {
     let bild: Pixelbild
@@ -298,7 +298,7 @@ struct NotchAnsicht: View {
     }
 
     /// 5-Stunden-Limit des Kontos, ab 80 % weiß; darunter ein Punkt pro offenem Terminal:
-    /// weiß braucht dich, hellgrau arbeitet, dunkel wartet
+    /// weiß wartet auf Eingabe, hellgrau arbeitet, dunkel ruht
     private var sitzungsPunkte: some View {
         let liste = modell.sitzungen.sorted { $0.dauer > $1.dauer }.prefix(Geometrie.maxSitzungen)
         let fuenf = modell.sitzungen.compactMap(\.fuenfStundenProzent).max()
