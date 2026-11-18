@@ -2,8 +2,6 @@
 
 A pixel octopus that shows what Claude Code is doing: as a status line in the terminal and as a small Mac app in the notch.
 
-![Oktopus in the notch](docs/notch.png)
-
 ![All gestures: waiting, listening, thinking, working, talking, asking, done, error, with helpers, asleep](docs/gestures.gif)
 
 - **Status line** (`claude/statusline.sh`): the octopus with an info column (context, usage limits, prompt cache, current tool).
