@@ -2,9 +2,24 @@
 # Pixel-Oktopus in doppelter Größe, rechts daneben eine Infospalte.
 # Zustand aus /tmp/oktopus-<session_id> (von oktopus-hook.sh), Frame nach aktueller Sekunde,
 # Farbe nach Kontextauslastung. Ein einziger jq-Aufruf, sonst nur Bash-Builtins.
+# Texte auf Deutsch, wenn die bevorzugte Systemsprache Deutsch ist, sonst Englisch.
 input=$(cat)
-IFS=$'\x1f' read -r now sid modell name pct ctx h5 h5r d7 d7r cache cache_knapp arbeit ort < <(jq -r '
-  def tage: ["So","Mo","Di","Mi","Do","Fr","Sa"];
+
+# Sprache aus den Systemeinstellungen, eine Stunde zwischengespeichert; OKTOPUS_SPRACHE=de|en überschreibt
+sprache=$OKTOPUS_SPRACHE
+if [[ -z $sprache ]]; then
+  sf=/tmp/oktopus-sprache
+  if [[ -n $(find "$sf" -mmin -60 2>/dev/null) ]]; then read -r sprache < "$sf"
+  else
+    [[ $(defaults read -g AppleLanguages 2>/dev/null | sed -n 2p) == *\"de* ]] && sprache=de || sprache=en
+    printf '%s\n' "$sprache" > "$sf"
+  fi
+fi
+[[ $sprache == de ]] && de=1 || de=
+t() { if [[ -n $de ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }
+IFS=$'\x1f' read -r now sid modell name pct ctx h5 h5r d7 d7r cache cache_knapp arbeit ort < <(jq -r --arg de "$de" '
+  def w(d; e): if $de == "1" then d else e end;
+  def tage: w(["So","Mo","Di","Mi","Do","Fr","Sa"]; ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]);
   def uhr: localtime | strftime("%H:%M");
   def tag: localtime as $t | tage[$t[6]] + " " + ($t | strftime("%H:%M"));
   def kurz: if . >= 1000000 then "\(. / 1000000 | floor)M" elif . >= 1000 then "\(. / 1000 | floor)k" else tostring end;
@@ -16,19 +31,19 @@ IFS=$'\x1f' read -r now sid modell name pct ctx h5 h5r d7 d7r cache cache_knapp 
   | .prompt_cache as $p
   | [ $now,
       .session_id // "",
-      (.model.display_name // "?") + (if .effort.level then " · Denkstufe " + .effort.level else "" end),
+      (.model.display_name // "?") + (if .effort.level then w(" · Denkstufe "; " · effort ") + .effort.level else "" end),
       .session_name // "",
       ($c.used_percentage // "" | tostring),
-      (if $c.context_window_size then "\($belegt | kurz) von \($c.context_window_size | kurz)" else "" end),
+      (if $c.context_window_size then "\($belegt | kurz) \(w("von"; "of")) \($c.context_window_size | kurz)" else "" end),
       ($r.five_hour.used_percentage // "" | tostring),
       ($r.five_hour.resets_at // null | if . then uhr else "" end),
       ($r.seven_day.used_percentage // "" | tostring),
       ($r.seven_day.resets_at // null | if . then tag else "" end),
       (if $p == null then "–"
-       elif $p.warm then "warm, noch \((($p.expires_at - $now) / 60) | floor) min · \((($p.hit_ratio // 0) * 100) | floor) % Treffer"
-       else "kalt" end),
+       elif $p.warm then w("warm, noch "; "warm, ") + "\((($p.expires_at - $now) / 60) | floor) min" + w(""; " left") + " · \((($p.hit_ratio // 0) * 100) | floor) % " + w("Treffer"; "hits")
+       else w("kalt"; "cold") end),
       (if $p.warm and ($p.expires_at - $now) < 300 then 1 else 0 end),
-      "+\(.cost.total_lines_added // 0) −\(.cost.total_lines_removed // 0) Zeilen · \(((.cost.total_duration_ms // 0) / 60000) | floor) min",
+      "+\(.cost.total_lines_added // 0) −\(.cost.total_lines_removed // 0) \(w("Zeilen"; "lines")) · \(((.cost.total_duration_ms // 0) / 60000) | floor) min",
       ((.workspace.current_dir // .cwd // "") | sub("^" + env.HOME; "~"))
     ] | map(tostring) | join("\u001f")' <<< "$input")
 # Eingabe für die Notch-App ablegen (nicht, wenn die App selbst zeichnen lässt)
@@ -91,15 +106,15 @@ case $state in
     elif (( z2 < 46 )); then blick runter
     elif (( z2 < 50 )); then blick offen froh
     fi
-    was='wartet auf dich' ;;
+    was=$(t 'wartet auf dich' 'waiting for you') ;;
   hoert)
-    blick gross; (( t )) || mund='o'; was='hört zu' ;;
+    blick gross; (( t )) || mund='o'; was=$(t 'hört zu' 'listening') ;;
   denkt)
     blick hoch; mund='-'
     (( z2 < 40 )) && links_schauen
     (( z2 >= 60 )) && rechts_schauen
     (( z1 < 8 )) && blick zu
-    was='denkt nach' ;;
+    was=$(t 'denkt nach' 'thinking') ;;
   tool)
     mund='-'
     case $extra in
@@ -119,20 +134,20 @@ case $state in
     m3=('o' '‿' 'O'); mund=${m3[s % 3]}; (( s % 3 == 1 )) || zu=')'
     (( z1 < 10 )) && blick zu
     (( z2 < 15 )) && links_schauen
-    was='spricht' ;;
+    was=$(t 'spricht' 'talking') ;;
   fragt)
-    (( t )) && blick gross || mund='o'; (( t )) && rechts=1; was='fragt um Erlaubnis' ;;
+    (( t )) && blick gross || mund='o'; (( t )) && rechts=1; was=$(t 'fragt um Erlaubnis' 'asking for permission') ;;
   fertig)
-    (( t )) && blick froh || blick froh offen; links=1 rechts=1; was='fertig' ;;
+    (( t )) && blick froh || blick froh offen; links=1 rechts=1; was=$(t 'fertig' 'done') ;;
   fehler)
-    (( t )) && blick kreuz || blick zu; mund='∩'; was='Fehler' ;;
+    (( t )) && blick kreuz || blick zu; mund='∩'; was=$(t 'Fehler' 'error') ;;
   schlaeft)
-    blick zu; mund='-'; was='schläft' ;;
+    blick zu; mund='-'; was=$(t 'schläft' 'asleep') ;;
   *)
-    was='wartet auf dich' ;;
+    was=$(t 'wartet auf dich' 'waiting for you') ;;
 esac
 augen_o="${vl}${la}   ${ra}${vr}" augen_u="${vl}${lb} ${mund} ${rb}${vr}"
-(( helfer )) && was+=" · $helfer Helfer"
+(( helfer )) && was+=" · $helfer $(t Helfer helpers)"
 
 p=${pct%%.*}
 [[ $p == null ]] && p=
@@ -193,14 +208,15 @@ fi
 h5c=$G d7c=$G
 [[ -n $h5 && $h5 != null ]] && (( ${h5%%.*} >= 80 )) && h5c=$W
 [[ -n $d7 && $d7 != null ]] && (( ${d7%%.*} >= 80 )) && d7c=$W
-limits="${G}5 h $h5c${h5:-–} %$G bis ${h5r:-–} · Woche $d7c${d7:-–} %$G bis ${d7r:-–}"
+bis=$(t bis until)
+limits="${G}5 h $h5c${h5:-–} %$G $bis ${h5r:-–} · $(t Woche week) $d7c${d7:-–} %$G $bis ${d7r:-–}"
 (( cache_knapp )) && cache="$W$cache" || cache="$G$cache"
 
 if [[ -n $name ]]; then i1="$W$name" i2="$G$modell"; else i1="$W$modell" i2=; fi
-i3="${D}Kontext $kontext"
+i3="${D}$(t 'Kontext' 'Context') $kontext"
 i4="${D}Limits  $limits"
 i5="${D}Cache   $cache"
-i6="${D}Jetzt   $G$was · $arbeit · $ort"
+i6="${D}$(t 'Jetzt  ' 'Now    ') $G$was · $arbeit · $ort"
 
 printf '%s%s%s  %s%s\n' "$C" "$r1" "$R0" "$i1" "$R0" "$C" "$r2" "$R0" "$i2" "$R0" "$C" "$r3" "$R0" "$i3" "$R0" \
   "$C" "$r4" "$R0" "$i4" "$R0" "$C" "$r5" "$R0" "$i5" "$R0" "$C" "$r6" "$R0" "$i6" "$R0"

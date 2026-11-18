@@ -150,10 +150,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var neu: Meldung?
         let offen = sitzungen.filter { $0.wirksamerZustand == "fertig" && gesehenFertig[$0.id] != $0.seit }
         if let s = offen.max(by: { $0.seit < $1.seit }) {
-            neu = Meldung(text: "✓ fertig · \(s.titel)", wichtig: false)
+            neu = Meldung(text: "✓ " + t("fertig", "done") + " · \(s.titel)", wichtig: false)
         }
         if let fragt = sitzungen.first(where: { $0.wirksamerZustand == "fragt" }) {
-            neu = Meldung(text: "? braucht dich · \(fragt.titel)", wichtig: true)
+            neu = Meldung(text: "? " + t("braucht dich", "needs you") + " · \(fragt.titel)", wichtig: true)
         }
         if neu != modell.meldung {
             withAnimation(.spring(duration: 0.35)) { modell.meldung = neu }
@@ -271,8 +271,8 @@ struct NotchAnsicht: View {
         .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: radius, bottomTrailingRadius: radius))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contextMenu {
-            Button("Einstellungen …") { EinstellungsFenster.shared.zeigen() }
-            Button("Beenden") { NSApp.terminate(nil) }
+            Button(t("Einstellungen …", "Settings …")) { EinstellungsFenster.shared.zeigen() }
+            Button(t("Beenden", "Quit")) { NSApp.terminate(nil) }
         }
     }
 
@@ -336,8 +336,8 @@ struct NotchAnsicht: View {
                 HStack(spacing: 14) {
                     PixelFigur(bild: modell.bild, pixel: g.pixelListe)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Schläft").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
-                        Text("Keine Claude-Code-Sitzung offen").font(schrift).foregroundStyle(wert)
+                        Text(t("Schläft", "Asleep")).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                        Text(t("Keine Claude-Code-Sitzung offen", "No Claude Code session open")).font(schrift).foregroundStyle(wert)
                     }
                 }
                 .frame(height: g.zeileHoehe)

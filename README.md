@@ -8,6 +8,8 @@ A pixel octopus that shows what Claude Code is doing: as a status line in the te
 - **Hooks** (`claude/oktopus-hook.sh`): write each session's state to `/tmp/oktopus-<session_id>`.
 - **Notch app** (`Sources/Oktopus`): shows the session that most needs attention, knocks when a permission is requested, reports when a session is done, and expands into a list of all sessions on hover. Next to the notch it shows the 5-hour usage limit.
 
+Texts follow the system language: German if it is German, English otherwise (`OKTOPUS_SPRACHE=de|en` overrides it for the status line).
+
 The figure is drawn only in `statusline.sh`; the app runs the script and converts its quarter blocks into pixels.
 
 Requires macOS 15 or later, `jq`, and [Claude Code](https://claude.com/claude-code).
@@ -22,7 +24,7 @@ cp claude/graustufen.json ~/.claude/themes/
 # Merge statusLine and hooks from claude/settings-auszug.json into ~/.claude/settings.json
 ```
 
-Right-click the octopus and choose "Einstellungen …" for an explanation of every gesture and the settings: what is shown next to the notch (5-hour limit, weekly limit, context or nothing), knocking on permission requests, and opening at login. The window also opens on first launch.
+Right-click the octopus and choose "Settings …" for an explanation of every gesture and the settings: what is shown next to the notch (5-hour limit, weekly limit, context or nothing), knocking on permission requests, and opening at login. The window also opens on first launch.
 
 ## Build from source
 

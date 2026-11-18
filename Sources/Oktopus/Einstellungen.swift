@@ -9,10 +9,10 @@ enum Anzeige: String, CaseIterable, Identifiable {
 
     var titel: String {
         switch self {
-        case .fuenfStunden: "5-Stunden-Limit"
-        case .woche: "Wochenlimit"
-        case .kontext: "Kontext der vollsten Sitzung"
-        case .nichts: "Nichts"
+        case .fuenfStunden: t("5-Stunden-Limit", "5-hour limit")
+        case .woche: t("Wochenlimit", "Weekly limit")
+        case .kontext: t("Kontext der vollsten Sitzung", "Context of the fullest session")
+        case .nichts: t("Nichts", "Nothing")
         }
     }
 
@@ -43,16 +43,16 @@ private struct Geste: Identifiable {
 }
 
 private let gesten = [
-    Geste(zustand: "wartet", titel: "Wartet", text: "Schaut sich um. Die Sitzung wartet auf deine nächste Nachricht."),
-    Geste(zustand: "hoert", titel: "Hört zu", text: "Große Augen, offener Mund. Deine Nachricht ist angekommen."),
-    Geste(zustand: "denkt", titel: "Denkt nach", text: "Blick nach oben, Gedankenblasen. Claude überlegt."),
-    Geste(zustand: "tool", titel: "Arbeitet", text: "Ein Arm greift nach außen. Claude liest, schreibt oder führt einen Befehl aus."),
-    Geste(zustand: "spricht", titel: "Spricht", text: "Der Mund bewegt sich. Claude schreibt eine Antwort."),
-    Geste(zustand: "fragt", titel: "Fragt um Erlaubnis", text: "Winkt mit dem rechten Arm und klopft an die Notch. Claude braucht deine Freigabe."),
-    Geste(zustand: "fertig", titel: "Fertig", text: "Beide Arme oben. Bleibt so, bis du die Notch aufklappst oder weiterschreibst."),
-    Geste(zustand: "fehler", titel: "Fehler", text: "Kreuzaugen und Tinte. Ein Befehl oder die Anfrage ist fehlgeschlagen."),
-    Geste(zustand: "denkt", helfer: 1, titel: "Mit Helfern", text: "Ein kleiner Oktopus daneben. Unteragenten arbeiten mit."),
-    Geste(zustand: "schlaeft", titel: "Schläft", text: "Keine Claude-Code-Sitzung offen."),
+    Geste(zustand: "wartet", titel: t("Wartet", "Waiting"), text: t("Schaut sich um. Die Sitzung wartet auf deine nächste Nachricht.", "Looks around. The session is waiting for your next message.")),
+    Geste(zustand: "hoert", titel: t("Hört zu", "Listening"), text: t("Große Augen, offener Mund. Deine Nachricht ist angekommen.", "Big eyes, open mouth. Your message has arrived.")),
+    Geste(zustand: "denkt", titel: t("Denkt nach", "Thinking"), text: t("Blick nach oben, Gedankenblasen. Claude überlegt.", "Looks up, thought bubbles. Claude is thinking.")),
+    Geste(zustand: "tool", titel: t("Arbeitet", "Working"), text: t("Ein Arm greift nach außen. Claude liest, schreibt oder führt einen Befehl aus.", "One arm reaches out. Claude is reading, writing or running a command.")),
+    Geste(zustand: "spricht", titel: t("Spricht", "Talking"), text: t("Der Mund bewegt sich. Claude schreibt eine Antwort.", "The mouth moves. Claude is writing a reply.")),
+    Geste(zustand: "fragt", titel: t("Fragt um Erlaubnis", "Asking for permission"), text: t("Winkt mit dem rechten Arm und klopft an die Notch. Claude braucht deine Freigabe.", "Waves the right arm and knocks on the notch. Claude needs your approval.")),
+    Geste(zustand: "fertig", titel: t("Fertig", "Done"), text: t("Beide Arme oben. Bleibt so, bis du die Notch aufklappst oder weiterschreibst.", "Both arms up. Stays that way until you open the notch or reply.")),
+    Geste(zustand: "fehler", titel: t("Fehler", "Error"), text: t("Kreuzaugen und Tinte. Ein Befehl oder die Anfrage ist fehlgeschlagen.", "Crossed eyes and ink. A command or the request failed.")),
+    Geste(zustand: "denkt", helfer: 1, titel: t("Mit Helfern", "With helpers"), text: t("Ein kleiner Oktopus daneben. Unteragenten arbeiten mit.", "A small octopus beside it. Subagents are helping.")),
+    Geste(zustand: "schlaeft", titel: t("Schläft", "Asleep"), text: t("Keine Claude-Code-Sitzung offen.", "No Claude Code session open.")),
 ]
 
 struct EinstellungsAnsicht: View {
@@ -63,8 +63,8 @@ struct EinstellungsAnsicht: View {
 
     var body: some View {
         TabView {
-            erklaerung.tabItem { Label("Gesten", systemImage: "questionmark.circle") }
-            einstellungen.tabItem { Label("Einstellungen", systemImage: "gearshape") }
+            erklaerung.tabItem { Label(t("Gesten", "Gestures"), systemImage: "questionmark.circle") }
+            einstellungen.tabItem { Label(t("Einstellungen", "Settings"), systemImage: "gearshape") }
         }
         .frame(width: 520, height: 560)
         .task {
@@ -94,24 +94,24 @@ struct EinstellungsAnsicht: View {
 
     private var einstellungen: some View {
         Form {
-            Section("Neben der Notch") {
-                Picker("Anzeige", selection: $anzeige) {
+            Section(t("Neben der Notch", "Next to the notch")) {
+                Picker(t("Anzeige", "Show"), selection: $anzeige) {
                     ForEach(Anzeige.allCases) { Text($0.titel).tag($0.rawValue) }
                 }
-                Toggle("Bei Erlaubnisfragen an die Notch klopfen", isOn: $klopfen)
+                Toggle(t("Bei Erlaubnisfragen an die Notch klopfen", "Knock on the notch for permission requests"), isOn: $klopfen)
             }
-            Section("Start") {
-                Toggle("Beim Anmelden starten", isOn: $beimAnmelden)
+            Section(t("Start", "Startup")) {
+                Toggle(t("Beim Anmelden starten", "Open at login"), isOn: $beimAnmelden)
                     .onChange(of: beimAnmelden) { _, an in
                         let dienst = SMAppService.mainApp
                         if an { try? dienst.register() } else { try? dienst.unregister() }
                         beimAnmelden = dienst.status == .enabled
                     }
             }
-            Section("Einrichtung") {
-                Text("Die Notch-App liest, was die Statuszeile und die Hooks von Claude Code schreiben. Beides wird einmalig eingerichtet, wie in der README beschrieben.")
+            Section(t("Einrichtung", "Setup")) {
+                Text(t("Die Notch-App liest, was die Statuszeile und die Hooks von Claude Code schreiben. Beides wird einmalig eingerichtet, wie in der README beschrieben.", "The notch app reads what the Claude Code status line and hooks write. Both are set up once, as described in the README."))
                     .foregroundStyle(.secondary)
-                Link("Anleitung auf GitHub", destination: URL(string: "https://github.com/k4lb1/oktopus#install")!)
+                Link(t("Anleitung auf GitHub", "Setup guide on GitHub"), destination: URL(string: "https://github.com/k4lb1/oktopus#install")!)
             }
         }
         .formStyle(.grouped)

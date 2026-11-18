@@ -85,7 +85,7 @@ struct Sitzung: Identifiable {
     var modellText: String {
         let name = info?.model?.display_name ?? "?"
         guard let stufe = info?.effort?.level else { return name }
-        return "\(name) · Denkstufe \(stufe)"
+        return "\(name) · " + t("Denkstufe", "effort") + " \(stufe)"
     }
 
     var kontextProzent: Int? { info?.context_window?.used_percentage.map { Int($0) } }
@@ -100,7 +100,7 @@ struct Sitzung: Identifiable {
         let belegt = (u?.input_tokens ?? 0) + (u?.output_tokens ?? 0)
             + (u?.cache_creation_input_tokens ?? 0) + (u?.cache_read_input_tokens ?? 0)
         guard let groesse = k.context_window_size else { return "\(Int(p)) %" }
-        return "\(Int(p)) % · \(Self.kurz(belegt)) von \(Self.kurz(groesse))"
+        return "\(Int(p)) % · \(Self.kurz(belegt)) " + t("von", "of") + " \(Self.kurz(groesse))"
     }
 
     /// Limits als Text; hervorheben, sobald eines 80 % erreicht
@@ -108,10 +108,10 @@ struct Sitzung: Identifiable {
         let fuenf = info?.rate_limits?.five_hour, woche = info?.rate_limits?.seven_day
         func teil(_ l: Statuszeile.Limit?, _ format: (Date) -> String) -> String {
             guard let p = l?.used_percentage else { return "–" }
-            let bis = l?.resets_at.map { " bis " + format(Date(timeIntervalSince1970: $0)) } ?? ""
+            let bis = l?.resets_at.map { " " + t("bis", "until") + " " + format(Date(timeIntervalSince1970: $0)) } ?? ""
             return "\(Int(p)) %\(bis)"
         }
-        let text = "5 h \(teil(fuenf, Self.uhr)) · Woche \(teil(woche, Self.tagUhr))"
+        let text = "5 h \(teil(fuenf, Self.uhr)) · " + t("Woche", "week") + " \(teil(woche, Self.tagUhr))"
         let hoch = max(fuenf?.used_percentage ?? 0, woche?.used_percentage ?? 0) >= 80
         return (text, hoch)
     }
@@ -119,25 +119,26 @@ struct Sitzung: Identifiable {
     /// Cache-Zustand; knapp, wenn er in weniger als 5 Minuten abläuft
     var cache: (text: String, knapp: Bool) {
         guard let c = info?.prompt_cache else { return ("–", false) }
-        guard c.warm == true, let ende = c.expires_at else { return ("kalt", false) }
+        guard c.warm == true, let ende = c.expires_at else { return (t("kalt", "cold"), false) }
         let rest = ende - Date().timeIntervalSince1970
         let treffer = Int((c.hit_ratio ?? 0) * 100)
-        return ("warm, noch \(max(Int(rest / 60), 0)) min · \(treffer) % Treffer", rest < 300)
+        let minuten = max(Int(rest / 60), 0)
+        return (t("warm, noch \(minuten) min · \(treffer) % Treffer", "warm, \(minuten) min left · \(treffer) % hits"), rest < 300)
     }
 
     var jetztText: String {
         var was: String
         switch wirksamerZustand {
-        case "hoert": was = "hört zu"
-        case "denkt": was = "denkt nach"
+        case "hoert": was = t("hört zu", "listening")
+        case "denkt": was = t("denkt nach", "thinking")
         case "tool": was = "▶ " + (extra.isEmpty ? "Tool" : extra)
-        case "spricht": was = "spricht"
-        case "fragt": was = "fragt um Erlaubnis"
-        case "fertig": was = "fertig"
-        case "fehler": was = "Fehler"
-        default: was = "wartet auf dich"
+        case "spricht": was = t("spricht", "talking")
+        case "fragt": was = t("fragt um Erlaubnis", "asking for permission")
+        case "fertig": was = t("fertig", "done")
+        case "fehler": was = t("Fehler", "error")
+        default: was = t("wartet auf dich", "waiting for you")
         }
-        if helfer > 0 { was += " · \(helfer) Helfer" }
+        if helfer > 0 { was += " · \(helfer) " + t("Helfer", "helpers") }
         return was
     }
 
@@ -147,7 +148,7 @@ struct Sitzung: Identifiable {
         var ort = info?.workspace?.current_dir ?? ""
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         if ort.hasPrefix(home) { ort = "~" + ort.dropFirst(home.count) }
-        return "+\(c?.total_lines_added ?? 0) −\(c?.total_lines_removed ?? 0) Zeilen · \(minuten) min · \(ort)"
+        return "+\(c?.total_lines_added ?? 0) −\(c?.total_lines_removed ?? 0) " + t("Zeilen", "lines") + " · \(minuten) min · \(ort)"
     }
 
     private static func kurz(_ n: Int) -> String {
@@ -161,7 +162,7 @@ struct Sitzung: Identifiable {
     }
 
     private static func tagUhr(_ d: Date) -> String {
-        let tage = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"]
+        let tage = Sprache.deutsch ? ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
         return tage[Calendar.current.component(.weekday, from: d) - 1] + " " + uhr(d)
     }
 }
