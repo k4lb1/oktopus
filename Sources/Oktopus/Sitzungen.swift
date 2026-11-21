@@ -52,6 +52,8 @@ struct Sitzung: Identifiable {
     var seit: TimeInterval = 0
     var extra = ""
     var helfer = 0
+    /// Läuft in der tmux-Sitzung „rc“, während ein Fernzugriff besteht (/tmp/rc-verbunden)
+    var fern = false
     var json: Data?
     var info: Statuszeile?
     var bild: Pixelbild?
@@ -175,6 +177,7 @@ enum Sitzungen {
         let jetzt = Date().timeIntervalSince1970
         var nachId: [String: Sitzung] = [:]
         var offen = Set<String>()
+        let iPhoneVerbunden = fm.fileExists(atPath: "/tmp/rc-verbunden")
 
         for name in namen where name.hasPrefix("oktopus-") {
             let rest = String(name.dropFirst("oktopus-".count))
@@ -194,6 +197,11 @@ enum Sitzungen {
                 let id = String(rest.dropLast(".helfer".count))
                 var s = nachId[id] ?? Sitzung(id: id)
                 s.helfer = (try? fm.contentsOfDirectory(atPath: pfad).count) ?? 0
+                nachId[id] = s
+            } else if rest.hasSuffix(".rc") {
+                let id = String(rest.dropLast(".rc".count))
+                var s = nachId[id] ?? Sitzung(id: id)
+                s.fern = iPhoneVerbunden
                 nachId[id] = s
             } else if !rest.contains(".") {
                 guard let text = try? String(contentsOfFile: pfad, encoding: .utf8) else { continue }

@@ -298,7 +298,7 @@ struct NotchAnsicht: View {
     }
 
     /// Gewählter Prozentwert (Limit oder Kontext), ab 80 % weiß; darunter ein Punkt pro offenem Terminal:
-    /// weiß wartet auf Eingabe, hellgrau arbeitet, dunkel ruht
+    /// weiß wartet auf Eingabe, hellgrau arbeitet, dunkel ruht, grün wird gerade aus der Ferne bedient (tmux-Sitzung „rc“, siehe Sitzungen.swift)
     private var sitzungsPunkte: some View {
         let liste = modell.sitzungen.sorted { $0.dauer > $1.dauer }.prefix(Geometrie.maxSitzungen)
         let prozent = (Anzeige(rawValue: anzeige) ?? .fuenfStunden).prozent(modell.sitzungen)
@@ -308,11 +308,12 @@ struct NotchAnsicht: View {
                 .foregroundStyle((prozent ?? 0) >= 80 ? .white : wert)
                 .lineLimit(1)
                 .fixedSize()
-            if liste.count > 1 {
+            if liste.count > 1 || liste.contains(where: \.fern) {
                 HStack(spacing: 3) {
                     ForEach(Array(liste)) { s in
                         Circle()
-                            .fill(s.dringlichkeit >= 3 ? Color.white : s.dringlichkeit == 2 ? Color(white: 0.6) : Color(white: 0.3))
+                            .fill(s.fern ? Color(red: 0.3, green: 0.85, blue: 0.45)
+                                  : s.dringlichkeit >= 3 ? Color.white : s.dringlichkeit == 2 ? Color(white: 0.6) : Color(white: 0.3))
                             .frame(width: 4, height: 4)
                     }
                 }

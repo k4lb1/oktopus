@@ -48,6 +48,8 @@ IFS=$'\x1f' read -r now sid modell name pct ctx h5 h5r d7 d7r cache cache_knapp 
     ] | map(tostring) | join("\u001f")' <<< "$input")
 # Eingabe für die Notch-App ablegen (nicht, wenn die App selbst zeichnen lässt)
 [[ -z $OKTOPUS_APP && -n $sid ]] && printf '%s' "$input" > "/tmp/oktopus-$sid.json"
+# Sitzungen in der tmux-Sitzung „rc“ markieren; die Notch-App zeigt sie bei Fernzugriff grün
+[[ -z $OKTOPUS_APP && -n $sid && $TMUX == */rc,* ]] && : > "/tmp/oktopus-$sid.rc"
 
 # Fester Zeitpunkt für Vorschaubilder (scripts/gesten.swift)
 [[ -n $OKTOPUS_JETZT ]] && now=$OKTOPUS_JETZT
