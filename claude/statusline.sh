@@ -1,7 +1,7 @@
 #!/bin/bash
 # Pixel-Oktopus in doppelter Größe, rechts daneben eine Infospalte.
 # Zustand aus /tmp/oktopus-<session_id> (von oktopus-hook.sh), Frame nach aktueller Sekunde,
-# Farbe nach Kontextauslastung. Ein einziger jq-Aufruf, sonst nur Bash-Builtins.
+# Farbe nach Kontextauslastung. Ein jq-Aufruf, ein zweiter nur bei neuen Nachrichten anderer Sitzungen.
 # Texte auf Deutsch, wenn die bevorzugte Systemsprache Deutsch ist, sonst Englisch.
 input=$(cat)
 
@@ -17,7 +17,7 @@ if [[ -z $sprache ]]; then
 fi
 [[ $sprache == de ]] && de=1 || de=
 t() { if [[ -n $de ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }
-IFS=$'\x1f' read -r now sid modell name pct ctx h5 h5r d7 d7r cache cache_knapp arbeit ort < <(jq -r --arg de "$de" '
+IFS=$'\x1f' read -r now sid modell name pct ctx h5 h5r d7 d7r cache cache_knapp arbeit ort tp < <(jq -r --arg de "$de" '
   def w(d; e): if $de == "1" then d else e end;
   def tage: w(["So","Mo","Di","Mi","Do","Fr","Sa"]; ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]);
   def uhr: localtime | strftime("%H:%M");
@@ -44,12 +44,49 @@ IFS=$'\x1f' read -r now sid modell name pct ctx h5 h5r d7 d7r cache cache_knapp 
        else w("kalt"; "cold") end),
       (if $p.warm and ($p.expires_at - $now) < 300 then 1 else 0 end),
       "+\(.cost.total_lines_added // 0) −\(.cost.total_lines_removed // 0) \(w("Zeilen"; "lines")) · \(((.cost.total_duration_ms // 0) / 60000) | floor) min",
-      ((.workspace.current_dir // .cwd // "") | sub("^" + env.HOME; "~"))
+      ((.workspace.current_dir // .cwd // "") | sub("^" + env.HOME; "~")),
+      .transcript_path // ""
     ] | map(tostring) | join("\u001f")' <<< "$input")
 # Eingabe für die Notch-App ablegen (nicht, wenn die App selbst zeichnen lässt)
 [[ -z $OKTOPUS_APP && -n $sid ]] && printf '%s' "$input" > "/tmp/oktopus-$sid.json"
-# Sitzungen in der tmux-Sitzung „rc“ markieren; die Notch-App zeigt sie bei Fernzugriff grün
-[[ -z $OKTOPUS_APP && -n $sid && $TMUX == */rc,* ]] && : > "/tmp/oktopus-$sid.rc"
+# Sitzungen in der tmux-Sitzung „rc“ markieren (mit tmux-Sitzungs-ID); die Notch-App zeigt sie bei Fernzugriff grün
+[[ -z $OKTOPUS_APP && -n $sid && $TMUX == */rc,* ]] && printf '$%s' "${TMUX##*,}" > "/tmp/oktopus-$sid.rc"
+
+# Gespräche mit anderen Sitzungen (SendMessage) aus dem Ende des Transkripts. Zeilen „Richtung<TAB>Zeit<TAB>Uhr<TAB>Name<TAB>Text“,
+# zwischengespeichert in /tmp/oktopus-<sid>.post und nur neu gelesen, wenn sich das Transkript ändert.
+post=
+if [[ -z $OKTOPUS_APP && -z $OKTOPUS_JETZT && -n $sid && -r $tp ]]; then
+  pf=/tmp/oktopus-$sid.post
+  stempel=$(stat -f '%m %z' "$tp")
+  alt=
+  [[ -r $pf ]] && read -r alt < "$pf"
+  if [[ $alt != "$stempel" ]]; then
+    roh=$(tail -c 400000 "$tp" | grep -E 'cross-session-message|"SendMessage"')
+    [[ -n $roh ]] && post=$(jq -R -s -r --arg u "$USER-" '
+      def kurz: if startswith("uds:") then "?" else sub("^" + $u; "") end;
+      [ split("\n")[] | fromjson? | select(.timestamp?) as $z
+        | ($z.timestamp | sub("\\.[0-9]+Z$"; "Z") | fromdate) as $ts
+        | if $z.type == "user" and ($z.message.content | type) == "string" and ($z.message.content | contains("<cross-session-message from=")) then
+            $z.message.content | capture("<cross-session-message from=\"(?<peer>[^\"]*)\"(?: from-name=\"(?<name>[^\"]*)\")?[^>]*>\\s*(?<text>.*?)\\s*(</cross-session-message>|$)"; "s")
+            | {d: "<", $ts, peer, name: (.name // .peer), text}
+          elif $z.type == "assistant" then
+            $z.message.content[]? | select(.type == "tool_use" and .name == "SendMessage" and (.input.message // "") != "")
+            | {d: ">", $ts, peer: .input.to, name: .input.to, text: .input.message}
+          else empty end ] | sort_by(.ts) as $r
+      | ($r | map(select(.d == "<") | {(.peer): .name}) | add // {}) as $namen
+      | $r[-4:][] | [.d, .ts, (.ts | localtime | strftime("%H:%M")), (($namen[.peer] // .name) | kurz), .text]
+      | map(tostring | gsub("[\t\n\r ]+"; " ")) | join("\t")' <<< "$roh")
+    printf '%s\n%s' "$stempel" "$post" > "$pf"
+  else
+    post=$(tail -n +2 "$pf")
+  fi
+fi
+# Eben eingetroffene Nachricht: Oktopus schaut zur Seite, Briefblase
+post_neu=0
+if [[ -n $post ]]; then
+  letzte=$(grep '^<' <<< "$post" | tail -1 | cut -f2)
+  [[ -n $letzte ]] && (( now - letzte < 10 )) && post_neu=1
+fi
 
 # Fester Zeitpunkt für Vorschaubilder (scripts/gesten.swift)
 [[ -n $OKTOPUS_JETZT ]] && now=$OKTOPUS_JETZT
@@ -151,6 +188,7 @@ case $state in
   *)
     was=$(t 'wartet auf dich' 'waiting for you') ;;
 esac
+(( post_neu )) && [[ $state != fragt && $state != fehler ]] && rechts_schauen
 augen_o="${vl}${la}   ${ra}${vr}" augen_u="${vl}${lb} ${mund} ${rb}${vr}"
 (( helfer )) && was+=" · $helfer $(t Helfer helpers)"
 
@@ -170,7 +208,9 @@ L='  ' R='  ' L2='  ' R2='  '
 (( links )) && L='▐▌' L2='▐▙'
 (( rechts )) && R='▐▌' R2='▟▌'
 blase=$R
-if [[ $state == denkt ]] && (( ! rechts )); then
+if (( post_neu && ! rechts )); then
+  (( t )) && blase="${W}✉ $C" || blase="$G ✉$C"
+elif [[ $state == denkt ]] && (( ! rechts )); then
   (( t )) && blase="${G}∘ $C" || blase="$G °$C"
 elif [[ $state == schlaeft ]]; then
   (( t )) && blase="${G}z $C" || blase="$G Z$C"
@@ -223,5 +263,46 @@ i4="${D}Limits  $limits"
 i5="${D}Cache   $cache"
 i6="${D}$(t 'Jetzt  ' 'Now    ') $G$was · $arbeit · $ort"
 
-printf '%s%s%s  %s%s\n' "$C" "$r1" "$R0" "$i1" "$R0" "$C" "$r2" "$R0" "$i2" "$R0" "$C" "$r3" "$R0" "$i3" "$R0" \
-  "$C" "$r4" "$R0" "$i4" "$R0" "$C" "$r5" "$R0" "$i5" "$R0" "$C" "$r6" "$R0" "$i6" "$R0"
+zeilen=("$i1" "$i2" "$i3" "$i4" "$i5" "$i6")
+
+# Dritte Spalte: Gespräche der letzten 10 Minuten, nur wenn das Fenster breit genug ist.
+# Die Breite kommt vom Terminal des aufrufenden claude-Prozesses.
+spalte=()
+if [[ -n $post ]]; then
+  while IFS=$'\t' read -r d ts uhr wer text; do
+    [[ -n $ts ]] && (( now - ts < 600 )) || continue
+    [[ $d == '<' ]] && pfeil="${W}←" || pfeil="${G}→"
+    spalte+=("$pfeil $W$wer $D$uhr $G$text")
+  done <<< "$post"
+fi
+if (( ${#spalte[@]} )); then
+  tty=$(ps -o tty= -p $PPID 2>/dev/null) tty=${tty// /}
+  breite=${OKTOPUS_BREITE:-0}
+  (( breite )) || [[ -z $tty || $tty == '??' ]] || read -r _ breite < <(stty -f "/dev/$tty" size 2>/dev/null)
+  shopt -s extglob
+  LC_ALL=en_US.UTF-8
+  sichtbar() { local s=${1//$'\e'\[*([0-9;])m/}; n=${#s}; }
+  lang=0
+  for z in "${zeilen[@]}"; do sichtbar "$z"; (( n > lang )) && lang=$n; done
+  # Oktopus 15 + 2 Abstand, Trenner 3, Rand 2
+  platz=$(( ${breite:-0} - 17 - lang - 5 ))
+  if (( platz >= 24 )); then
+    for (( k = 0; k < ${#spalte[@]}; k++ )); do
+      sichtbar "${zeilen[k]}"
+      printf -v luecke '%*s' $(( lang - n )) ''
+      s=${spalte[k]}
+      sichtbar "$s"
+      if (( n > platz )); then
+        # Kürzen auf sichtbare Breite: Farbcodes stehen nur vor dem Text, der Text selbst ist schlicht
+        vorn=${s% "$G"*} rest=${s##* "$G"}
+        sichtbar "$vorn"
+        rest=${rest:0:$(( platz - n - 2 ))}…
+        s="$vorn $G$rest"
+      fi
+      zeilen[k]="${zeilen[k]}$luecke  ${D}┊ $s"
+    done
+  fi
+fi
+
+printf '%s%s%s  %s%s\n' "$C" "$r1" "$R0" "${zeilen[0]}" "$R0" "$C" "$r2" "$R0" "${zeilen[1]}" "$R0" "$C" "$r3" "$R0" "${zeilen[2]}" "$R0" \
+  "$C" "$r4" "$R0" "${zeilen[3]}" "$R0" "$C" "$r5" "$R0" "${zeilen[4]}" "$R0" "$C" "$r6" "$R0" "${zeilen[5]}" "$R0"
