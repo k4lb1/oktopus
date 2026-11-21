@@ -52,8 +52,12 @@ struct Sitzung: Identifiable {
     var seit: TimeInterval = 0
     var extra = ""
     var helfer = 0
-    /// Läuft in der tmux-Sitzung „rc“, während ein Fernzugriff besteht (/tmp/rc-verbunden)
+    /// Läuft in der tmux-Sitzung „rc“ von Tentakel; steht in der Notch getrennt und grau mit grünen Augen
+    var tentakel = false
+    /// Tentakel-Sitzung, während ein Fernzugriff besteht (/tmp/rc-verbunden)
     var fern = false
+    /// rc-Sitzung, an der seit 30 s kein Client mehr hängt
+    var verlassen = false
     var json: Data?
     var info: Statuszeile?
     var bild: Pixelbild?
@@ -170,6 +174,32 @@ struct Sitzung: Identifiable {
 }
 
 enum Sitzungen {
+    /// tmux-Sitzung → seit wann kein Client (iPhone oder `rc` am Mac) mehr dranhängt
+    private static var losgelassen: [String: TimeInterval] = [:]
+    private static var clients: (stand: TimeInterval, ids: Set<String>)?
+
+    /// IDs der rc-tmux-Sitzungen mit Client; nur alle 2 s abgefragt
+    private static func angehaengt(_ jetzt: TimeInterval) -> Set<String> {
+        if let clients, jetzt - clients.stand < 2 { return clients.ids }
+        let tmux = ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux"].first { FileManager.default.isExecutableFile(atPath: $0) }
+        var ids = Set<String>()
+        if let tmux {
+            let prozess = Process()
+            prozess.executableURL = URL(fileURLWithPath: tmux)
+            prozess.arguments = ["-L", "rc", "list-clients", "-F", "#{session_id}"]
+            let rohr = Pipe()
+            prozess.standardOutput = rohr
+            prozess.standardError = FileHandle.nullDevice
+            if (try? prozess.run()) != nil {
+                let daten = rohr.fileHandleForReading.readDataToEndOfFile()
+                prozess.waitUntilExit()
+                ids = Set(String(decoding: daten, as: UTF8.self).split(separator: "\n").map(String.init))
+            }
+        }
+        clients = (jetzt, ids)
+        return ids
+    }
+
     /// Offene Sitzungen, die zuletzt aktive zuerst. Offen ist eine Sitzung, solange ihre Statuszeile läuft.
     static func lesen() -> [Sitzung] {
         let fm = FileManager.default
@@ -201,7 +231,18 @@ enum Sitzungen {
             } else if rest.hasSuffix(".rc") {
                 let id = String(rest.dropLast(".rc".count))
                 var s = nachId[id] ?? Sitzung(id: id)
+                s.tentakel = true
                 s.fern = iPhoneVerbunden
+                // Hängt 30 s niemand mehr an der tmux-Sitzung, verschwindet sie aus der Notch
+                if let tmuxId = try? String(contentsOfFile: pfad, encoding: .utf8), !tmuxId.isEmpty {
+                    if angehaengt(jetzt).contains(tmuxId) {
+                        losgelassen[tmuxId] = nil
+                    } else {
+                        let seit = losgelassen[tmuxId] ?? jetzt
+                        losgelassen[tmuxId] = seit
+                        s.verlassen = jetzt - seit > 30
+                    }
+                }
                 nachId[id] = s
             } else if !rest.contains(".") {
                 guard let text = try? String(contentsOfFile: pfad, encoding: .utf8) else { continue }
@@ -214,6 +255,6 @@ enum Sitzungen {
                 nachId[rest] = s
             }
         }
-        return nachId.values.filter { offen.contains($0.id) }.sorted { $0.seit > $1.seit }
+        return nachId.values.filter { offen.contains($0.id) && !$0.verlassen }.sorted { $0.seit > $1.seit }
     }
 }

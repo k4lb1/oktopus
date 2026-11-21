@@ -11,6 +11,7 @@ struct Geometrie {
     let pixelListe: CGFloat = 4
     let zeileHoehe: CGFloat = 58
     let meldungHoehe: CGFloat = 24
+    let ueberschriftHoehe: CGFloat = 22
     static let maxSitzungen = 6
 
     var breiteZu: CGFloat { notchBreite + 2 * fluegel }
@@ -19,12 +20,12 @@ struct Geometrie {
     // 2 pt hoch, 1 pt breit fällt auf ganze Retina-Pixel und bleibt scharf.
     let pixelKlein: CGFloat = 2
 
-    func hoeheOffen(sitzungen n: Int) -> CGFloat {
-        notchHoehe + 6 + CGFloat(min(max(n, 1), Self.maxSitzungen)) * zeileHoehe + 40
+    func hoeheOffen(sitzungen n: Int, tentakel: Bool = false) -> CGFloat {
+        notchHoehe + 6 + CGFloat(min(max(n, 1), Self.maxSitzungen)) * zeileHoehe + 40 + (tentakel ? ueberschriftHoehe : 0)
     }
 
     var fensterRahmen: NSRect {
-        let h = hoeheOffen(sitzungen: Self.maxSitzungen)
+        let h = hoeheOffen(sitzungen: Self.maxSitzungen, tentakel: true)
         return NSRect(x: notchMitteX - breiteOffen / 2, y: oben - h, width: breiteOffen, height: h)
     }
 
@@ -32,8 +33,8 @@ struct Geometrie {
         NSRect(x: notchMitteX - breiteZu / 2, y: oben - notchHoehe, width: breiteZu, height: notchHoehe)
     }
 
-    func rahmenOffen(sitzungen n: Int) -> NSRect {
-        let h = hoeheOffen(sitzungen: n)
+    func rahmenOffen(sitzungen n: Int, tentakel: Bool) -> NSRect {
+        let h = hoeheOffen(sitzungen: n, tentakel: tentakel)
         return NSRect(x: notchMitteX - breiteOffen / 2, y: oben - h, width: breiteOffen, height: h)
     }
 
@@ -62,10 +63,19 @@ struct Meldung: Equatable {
 
 final class NotchModell: ObservableObject {
     @Published var bild = Pixelbild()
+    /// Die Figur in der zugeklappten Notch gehört zu einer Tentakel-Sitzung
+    @Published var bildTentakel = false
     @Published var sitzungen: [Sitzung] = []
     @Published var aufgeklappt = false
     @Published var meldung: Meldung?
     @Published var geometrie = Geometrie.berechnen()
+
+    /// Angezeigte Sitzungen: erst die am Mac, dann die von Tentakel, jeweils nach Laufzeit
+    var liste: ArraySlice<Sitzung> {
+        sitzungen.sorted { $0.tentakel != $1.tentakel ? !$0.tentakel : $0.dauer > $1.dauer }.prefix(Geometrie.maxSitzungen)
+    }
+
+    var zeigtTentakel: Bool { liste.contains(where: \.tentakel) }
 
     /// Irgendeine Sitzung wartet auf eine Erlaubnis
     var klopft: Bool { sitzungen.contains { $0.wirksamerZustand == "fragt" } }
@@ -132,10 +142,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hintergrund.async {
             var sitzungen = Sitzungen.lesen()
             for i in sitzungen.indices { sitzungen[i].bild = Figur.rendern(json: sitzungen[i].json, zustand: nil) }
-            let bild = NotchModell.vertreter(sitzungen)?.bild ?? Figur.rendern(json: nil, zustand: "schlaeft")
+            let vertreter = NotchModell.vertreter(sitzungen)
+            let bild = vertreter?.bild ?? Figur.rendern(json: nil, zustand: "schlaeft")
             DispatchQueue.main.async {
                 self.modell.sitzungen = sitzungen
                 if let bild { self.modell.bild = bild }
+                self.modell.bildTentakel = vertreter?.tentakel ?? false
                 self.melden(sitzungen)
                 self.rendertGerade = false
             }
@@ -164,7 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Abfragen statt Tracking-Areas, weil das Fenster nie aktiv wird.
     private func mausPruefen() {
         let g = modell.geometrie
-        let feld = modell.aufgeklappt ? g.rahmenOffen(sitzungen: modell.sitzungen.count) : g.rahmenZu
+        let feld = modell.aufgeklappt ? g.rahmenOffen(sitzungen: modell.liste.count, tentakel: modell.zeigtTentakel) : g.rahmenZu
         let drin = feld.insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation)
         if drin != modell.aufgeklappt {
             withAnimation(.spring(duration: 0.35)) { modell.aufgeklappt = drin }
@@ -177,19 +189,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 // MARK: - Ansicht
 
+extension Color {
+    static let tentakelGruen = Color(red: 0.3, green: 0.85, blue: 0.45)
+}
+
 struct PixelFigur: View {
     let bild: Pixelbild
     /// Pixelhöhe; die Breite ist die Hälfte, wie bei Viertelblöcken im Terminal
     let pixel: CGFloat
+    /// Tentakel-Sitzungen: grauer Körper, grüne Augen
+    var tentakel = false
 
     var body: some View {
         Canvas { ctx, _ in
             for y in 0..<Pixelbild.hoehe {
                 for x in 0..<Pixelbild.breite {
                     // Schwarz bleibt ein Loch im Körper, so sind Augen und Mund dunkel
-                    guard let g = bild[x, y], g > 0 else { continue }
+                    guard let g = bild[x, y], g != Figur.mund, g > 0 || tentakel else { continue }
+                    let farbe = g == 0 ? Color.tentakelGruen : Color(white: Double(g) / 255 * (tentakel ? 0.55 : 1))
                     let rechteck = CGRect(x: CGFloat(x) * pixel / 2, y: CGFloat(y) * pixel, width: pixel / 2, height: pixel)
-                    ctx.fill(Path(rechteck), with: .color(Color(white: Double(g) / 255)))
+                    ctx.fill(Path(rechteck), with: .color(farbe))
                 }
             }
         }
@@ -203,11 +222,12 @@ struct KlopfendeFigur: View {
     let bild: Pixelbild
     let pixel: CGFloat
     let klopft: Bool
+    var tentakel = false
 
     var body: some View {
         TimelineView(.animation(paused: !klopft)) { kontext in
             let stoss = klopft ? Self.stoss(kontext.date.timeIntervalSinceReferenceDate) : 0
-            PixelFigur(bild: bild, pixel: pixel)
+            PixelFigur(bild: bild, pixel: pixel, tentakel: tentakel)
                 .scaleEffect(1 + 0.2 * stoss)
                 .overlay { Self.striche(groesse: pixel * 3).opacity(stoss) }
         }
@@ -254,7 +274,7 @@ struct NotchAnsicht: View {
         let g = modell.geometrie
         let offen = modell.aufgeklappt
         let breite = offen ? g.breiteOffen : g.breiteZu
-        let hoehe = offen ? g.hoeheOffen(sitzungen: modell.sitzungen.count)
+        let hoehe = offen ? g.hoeheOffen(sitzungen: modell.liste.count, tentakel: modell.zeigtTentakel)
             : g.notchHoehe + (modell.meldung == nil ? 0 : g.meldungHoehe)
         let radius: CGFloat = offen ? 20 : 10
 
@@ -281,7 +301,7 @@ struct NotchAnsicht: View {
             HStack(spacing: 0) {
                 sitzungsPunkte.frame(width: g.fluegel)
                 Color.clear.frame(width: g.notchBreite)
-                KlopfendeFigur(bild: modell.bild, pixel: g.pixelKlein, klopft: klopfen && modell.klopft)
+                KlopfendeFigur(bild: modell.bild, pixel: g.pixelKlein, klopft: klopfen && modell.klopft, tentakel: modell.bildTentakel)
                     .frame(width: g.fluegel)
             }
             .frame(height: g.notchHoehe)
@@ -300,7 +320,7 @@ struct NotchAnsicht: View {
     /// Gewählter Prozentwert (Limit oder Kontext), ab 80 % weiß; darunter ein Punkt pro offenem Terminal:
     /// weiß wartet auf Eingabe, hellgrau arbeitet, dunkel ruht, grün wird gerade aus der Ferne bedient (tmux-Sitzung „rc“, siehe Sitzungen.swift)
     private var sitzungsPunkte: some View {
-        let liste = modell.sitzungen.sorted { $0.dauer > $1.dauer }.prefix(Geometrie.maxSitzungen)
+        let liste = modell.liste
         let prozent = (Anzeige(rawValue: anzeige) ?? .fuenfStunden).prozent(modell.sitzungen)
         return VStack(spacing: 4) {
             Text(prozent.map { "\($0) %" } ?? "")
@@ -312,7 +332,7 @@ struct NotchAnsicht: View {
                 HStack(spacing: 3) {
                     ForEach(Array(liste)) { s in
                         Circle()
-                            .fill(s.fern ? Color(red: 0.3, green: 0.85, blue: 0.45)
+                            .fill(s.fern ? Color.tentakelGruen
                                   : s.dringlichkeit >= 3 ? Color.white : s.dringlichkeit == 2 ? Color(white: 0.6) : Color(white: 0.3))
                             .frame(width: 4, height: 4)
                     }
@@ -321,9 +341,10 @@ struct NotchAnsicht: View {
         }
     }
 
-    /// Alle offenen Sitzungen untereinander, jede mit eigenem Oktopus; Limits gelten fürs Konto und stehen einmal oben
+    /// Alle offenen Sitzungen untereinander, jede mit eigenem Oktopus, die von Tentakel abgesetzt darunter;
+    /// Limits gelten fürs Konto und stehen einmal oben
     private func aufgeklappt(_ g: Geometrie) -> some View {
-        let liste = modell.sitzungen.sorted { $0.dauer > $1.dauer }.prefix(Geometrie.maxSitzungen)
+        let liste = modell.liste
         let limits = modell.sitzungen.first(where: { $0.info?.rate_limits != nil })?.limits
         return VStack(alignment: .leading, spacing: 0) {
             Color.clear.frame(height: g.notchHoehe + 6)
@@ -343,7 +364,16 @@ struct NotchAnsicht: View {
                 }
                 .frame(height: g.zeileHoehe)
             }
-            ForEach(Array(liste)) { s in
+            ForEach(liste.filter { !$0.tentakel }) { s in
+                zeile(s, g)
+            }
+            if modell.zeigtTentakel {
+                Text("Tentakel" + (liste.contains(where: \.fern) ? " · " + t("verbunden", "connected") : ""))
+                    .font(schrift)
+                    .foregroundStyle(Color.tentakelGruen.opacity(0.8))
+                    .frame(height: g.ueberschriftHoehe, alignment: .bottom)
+            }
+            ForEach(liste.filter(\.tentakel)) { s in
                 zeile(s, g)
             }
         }
@@ -355,7 +385,7 @@ struct NotchAnsicht: View {
     private func zeile(_ s: Sitzung, _ g: Geometrie) -> some View {
         let cache = s.cache
         return HStack(spacing: 14) {
-            KlopfendeFigur(bild: s.bild ?? modell.bild, pixel: g.pixelListe, klopft: s.wirksamerZustand == "fragt")
+            KlopfendeFigur(bild: s.bild ?? modell.bild, pixel: g.pixelListe, klopft: s.wirksamerZustand == "fragt", tentakel: s.tentakel)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
                     Text(s.titel).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white).lineLimit(1)

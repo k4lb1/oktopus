@@ -1,6 +1,6 @@
 import Foundation
 
-/// Graustufenbild 30×12 Pixel; nil ist durchsichtig, 0 ist Schwarz (Augen, Mund).
+/// Graustufenbild 30×12 Pixel; nil ist durchsichtig, 0 sind die Augen, 1 der Mund (beide schwarz).
 struct Pixelbild: Equatable {
     static let breite = 30, hoehe = 12
     var grau = [UInt8?](repeating: nil, count: breite * hoehe)
@@ -67,6 +67,9 @@ enum Figur {
         "∩": [".XX.", "X..X"],
     ]
 
+    /// Grauwert der Mundpixel, damit sich Augen getrennt färben lassen
+    static let mund: UInt8 = 1
+
     static func zerlegen(_ text: String) -> Pixelbild {
         var bild = Pixelbild()
         let zeilen = text.split(separator: "\n", omittingEmptySubsequences: false).prefix(6)
@@ -98,7 +101,7 @@ enum Figur {
             // Münder zuletzt, sonst überschreibt die Nachbarzelle ihre äußeren Pixel
             for m in muendchen {
                 for (dy, reihe) in m.muster.enumerated() {
-                    for (dx, p) in reihe.enumerated() where p == "X" { bild[m.x + dx, zeile * 2 + dy] = m.farbe }
+                    for (dx, p) in reihe.enumerated() where p == "X" { bild[m.x + dx, zeile * 2 + dy] = max(m.farbe, Figur.mund) }
                 }
             }
         }
