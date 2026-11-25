@@ -22,6 +22,7 @@ IFS=$'\x1f' read -r now sid modell name pct ctx h5 h5r d7 d7r cache cache_knapp 
   def tage: w(["So","Mo","Di","Mi","Do","Fr","Sa"]; ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]);
   def uhr: localtime | strftime("%H:%M");
   def tag: localtime as $t | tage[$t[6]] + " " + ($t | strftime("%H:%M"));
+  def geld: (. * 100 | round) as $c | "\($c / 100 | floor)\(w(","; "."))\($c % 100 | tostring | if length < 2 then "0" + . else . end)";
   def kurz: if . >= 1000000 then "\(. / 1000000 | floor)M" elif . >= 1000 then "\(. / 1000 | floor)k" else tostring end;
   (now | floor) as $now
   | .context_window as $c
@@ -43,7 +44,8 @@ IFS=$'\x1f' read -r now sid modell name pct ctx h5 h5r d7 d7r cache cache_knapp 
        elif $p.warm then w("warm, noch "; "warm, ") + "\((($p.expires_at - $now) / 60) | floor) min" + w(""; " left") + " · \((($p.hit_ratio // 0) * 100) | floor) % " + w("Treffer"; "hits")
        else w("kalt"; "cold") end),
       (if $p.warm and ($p.expires_at - $now) < 300 then 1 else 0 end),
-      "+\(.cost.total_lines_added // 0) −\(.cost.total_lines_removed // 0) \(w("Zeilen"; "lines")) · \(((.cost.total_duration_ms // 0) / 60000) | floor) min",
+      "+\(.cost.total_lines_added // 0) −\(.cost.total_lines_removed // 0) \(w("Zeilen"; "lines")) · \(((.cost.total_duration_ms // 0) / 60000) | floor) min"
+        + (if .cost.total_cost_usd then " · ≈ \(.cost.total_cost_usd | geld) $" else "" end),
       ((.workspace.current_dir // .cwd // "") | sub("^" + env.HOME; "~")),
       .transcript_path // ""
     ] | map(tostring) | join("\u001f")' <<< "$input")

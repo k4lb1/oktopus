@@ -32,6 +32,7 @@ struct Statuszeile: Decodable {
         let total_lines_added: Int?
         let total_lines_removed: Int?
         let total_duration_ms: Double?
+        let total_cost_usd: Double?
     }
     struct Arbeitsplatz: Decodable { let current_dir: String? }
 
@@ -154,7 +155,9 @@ struct Sitzung: Identifiable {
         var ort = info?.workspace?.current_dir ?? ""
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         if ort.hasPrefix(home) { ort = "~" + ort.dropFirst(home.count) }
-        return "+\(c?.total_lines_added ?? 0) −\(c?.total_lines_removed ?? 0) " + t("Zeilen", "lines") + " · \(minuten) min · \(ort)"
+        // Kosten der Sitzung zum API-Listenpreis, von Claude Code geschätzt; nicht der abgerechnete Betrag
+        let kosten = c?.total_cost_usd.map { " · ≈ " + String(format: "%.2f", $0).replacingOccurrences(of: ".", with: t(",", ".")) + " $" } ?? ""
+        return "+\(c?.total_lines_added ?? 0) −\(c?.total_lines_removed ?? 0) " + t("Zeilen", "lines") + " · \(minuten) min\(kosten) · \(ort)"
     }
 
     private static func kurz(_ n: Int) -> String {
